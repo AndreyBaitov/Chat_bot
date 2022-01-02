@@ -544,7 +544,7 @@ class SeaBattle:
     def check_phrase_about_try(self, phrase: str):
         '''Обрабатывает ответ игрока на валидность попытки. Если бот не понял, выдает False, если понял, то приводит к стандартному виду и отдает строкой'''
         unity_phrase = False  # по умолчанию бот не понял
-        phrase = phrase.lower()  #todo вставить обработку неправильного языка, чтобы уметь обрабатывать f1==а1
+        phrase = phrase.lower()
         phrase = phrase.replace(' ','')  # убираем
         if len(phrase) < 2:  # Значит точно неверный ответ
             return False
@@ -575,8 +575,8 @@ class SeaBattle:
                         y = index
                         variants.append((x,y+1))
                     index += 1
-            if not variants: # проверка наличия еще UNKNOWN
-                bot_turn = 'У меня кончились ходы, ты не жулик?'  # todo еще вставить проверку оставшихся * и кораблей в живых, можно ли их вообще теоретически быть
+            if len(variants) < (sum(self.remaining_users_ships) - self.status_users_ship['hits']): # если у противника больше кораблей, чем мест
+                bot_turn = 'У меня кончились ходы, ты не жулик?'
                 return bot_turn
             x, y = random.choice(variants)
             bot_turn = x + ' ' + str(y)
