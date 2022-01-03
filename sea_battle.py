@@ -116,10 +116,11 @@ class SeaBattle:
                 return f'{max(ships_in_game)}-палубник Не влезет на поле {DEEP}X{DEEP}! Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
             line_reference = ''
             for i in range(max(ships_in_game)):
-                line_reference += f'{game.names_ships[i + 1]} это {i + 1}-палубник\n'  # todo убрать те виды кораблей, которых нет в списке
-                self.ships = ships_in_game [:] #
-                self.remaining_users_ships = self.ships[:]  # список вражеских кораблей для определения конца игры
-                self.remaining_bots_ships = self.ships[:]  # отдельный список для оставшихся в живых кораблей
+                if i+1 in ships_in_game:
+                    line_reference += f'{game.names_ships[i + 1]} это {i + 1}-палубник\n'
+            self.ships = ships_in_game [:] #
+            self.remaining_users_ships = self.ships[:]  # список вражеских кораблей для определения конца игры
+            self.remaining_bots_ships = self.ships[:]  # отдельный список для оставшихся в живых кораблей
             self.situation = 'start the game. Step 3'
             return line_ships + line_reference + 'Всё верно?'
 
@@ -375,7 +376,10 @@ class SeaBattle:
         if self.situation == 'check users board yourself':  # Значит мы сами проверяем попали или мимо
             message = self.check_lazy_users_board()  # adding - Строка результата нашего действия
             adding = message
-            self.situation = 'wait answer from user'  # чтобы ниже обработался подменённый ответ
+            if self.situation == 'end the game':
+                return ''
+            else:
+                self.situation = 'wait answer from user'  # чтобы ниже обработался подменённый ответ
         if self.situation == 'user must try to hit':  # Значит мы ждем, что игрок будет пытаться стрелять
             answer, situation = self.check_hit(message)
         elif self.situation == 'wait answer from user':  # Значит мы ждем ответа попал или не попал
@@ -403,6 +407,7 @@ class SeaBattle:
             answer = 'Ч**т! Мимо!'
             self.lazy_user_board[x][y - 1] = MISSED
         elif not self.remaining_users_ships: #  проверка в конце игры
+            self.situation = 'end the game'
             return ''
         else:
             raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
@@ -680,6 +685,8 @@ class SeaBattle:
             self.enemy_board[x][y - 1] = MISSED # надо записать в поле проверок и предложить юзеру сделать ход
             answer = random.choice(['Ясненько!','Жаль!','Эээх!','***!','Упс!','Тааак!']) + ' ' + random.choice(['Твой ход.','Ходи.','Стреляй.','Шмаляй.','Прицелься получше.','Давай.','Пробуй.'])
             situation = 'user must try to hit'
+        elif 'вот и кончилась наша' in reply:
+            return ('','end the game')
         else:
             answer = 'Эээ, не понял. Повтори!'
             situation = 'wait answer from user'
