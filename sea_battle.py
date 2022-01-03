@@ -21,16 +21,16 @@ fh.setFormatter(formatter)
 log.addHandler(fh)
 log.setLevel(logging.INFO)
 
+WIDTH = 'й'  # Ширина поля
+DEEP = 10    # по умолчанию поле 10х10
 
-WOUND = '⊡' # ø '\u22A1' ⊡ Раненый корабль
-KILL = '⛝'  # ® chr(9949) ⛝ Убитый корабль
-MISSED = chr(1607)  #chr(870) ͦ Промах
+WOUND = '⊡' # '\u22A1' ⊡ Раненый корабль
+KILL = '⛝'  # chr(9949) ⛝ Убитый корабль
+MISSED = chr(1607)  # Промах
 SHIP = '⎈'  # chr(9096) Целый корабль
 NOT_PERSPECTIVE = '\u224B'  # '≋' выставляется автоматом вокруг найденных кораблей.
-EMPTY = ' '
-WIDTH = 'й'
-DEEP = 10
-UNKNOWN = '*'
+EMPTY = ' '  #
+UNKNOWN = '*'  # еще не проверенная для удара клетка
 COLOR_SCHEME = {}  # словарь окраски символов
 COLOR_SCHEME[WOUND] = '[red]'
 COLOR_SCHEME[KILL] = '[red]'
@@ -38,19 +38,6 @@ COLOR_SCHEME[MISSED] = '[blue]'
 COLOR_SCHEME[SHIP] = '[green]'
 COLOR_SCHEME[EMPTY] = '[black]'
 COLOR_SCHEME[UNKNOWN] = '[green]'
-
-
-class Highlighter(RegexHighlighter):
-    """Apply style to anything on a board."""
-    base_style = 'color.'
-    highlights = [f'(?P<ship>({SHIP}))', f'(?P<wound>({WOUND}))',f'(?P<kill>({KILL}))',f'(?P<missed>({MISSED}))',
-                  f'(?P<not_perspective>({NOT_PERSPECTIVE}))',r"(?P<unknown>(\*))"]
-
-
-theme = Theme({'color.ship': 'black on blue','color.wound': 'red on blue','color.kill': 'yellow on red',
-               'color.missed': 'magenta on blue','color.not_perspective': 'red on blue','color.unknown': 'blue on green'})
-
-console = Console(highlighter=Highlighter(), theme=theme)
 
 class SeaBattle:
     names_ships = {1: 'катер', 2: 'корвет', 3: 'фрегат', 4: 'крейсер', 5: 'линкор', 6: 'суперлинкор', 7: 'мегалинкор',
@@ -374,7 +361,7 @@ class SeaBattle:
             self.situation = situation
             return answer
         elif any([_ in message for _ in ['покажи', 'показать', 'поле']]):  # проверка показ полей
-            self.show_users_boards()  #todo переделать на показ картинки полей
+            self.show_users_boards()
             return 'Океюшки'
         elif any([_ in message for _ in ['помощь', 'помошь', 'помоги', 'хелп']]):
             return 'Чтобы выйти, набери "выход".\nЧтобы получить список сохравнишхся в живых кораблей, набери "корабли"\nЧтобы увидеть свои поля, набери "покажи"'
