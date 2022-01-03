@@ -283,6 +283,7 @@ class SeaBattle:
     def show_users_boards (self):
         '''Показывает 1 или оба поля пользователя. Слева lazy_users_board или пустой, а второй генерится на основе my_board бота '''
 
+        console = Console()
         table = Table(show_header=True, show_footer=True, box=box.ROUNDED, header_style="bold yellow",
                       footer_style="bold yellow", show_lines=True)
         # сначала делаем столбцы
