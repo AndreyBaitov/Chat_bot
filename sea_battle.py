@@ -10,6 +10,8 @@ import logging
 from rich import print, box
 from rich.console import Console
 from rich.table import Table
+from rich.highlighter import RegexHighlighter
+from rich.theme import Theme
 
 log = logging.getLogger('sea_battle')
 log.setLevel(logging.INFO)
@@ -23,12 +25,32 @@ log.setLevel(logging.INFO)
 WOUND = '⊡' # ø '\u22A1' ⊡ Раненый корабль
 KILL = '⛝'  # ® chr(9949) ⛝ Убитый корабль
 MISSED = chr(1607)  #chr(870) ͦ Промах
-SHIP = '⎕'  # '\u2395' = '⎕' Целый корабль
+SHIP = '⎈'  # chr(9096) Целый корабль
 NOT_PERSPECTIVE = '\u224B'  # '≋' выставляется автоматом вокруг найденных кораблей.
 EMPTY = ' '
 WIDTH = 'й'
 DEEP = 10
 UNKNOWN = '*'
+COLOR_SCHEME = {}  # словарь окраски символов
+COLOR_SCHEME[WOUND] = '[red]'
+COLOR_SCHEME[KILL] = '[red]'
+COLOR_SCHEME[MISSED] = '[blue]'
+COLOR_SCHEME[SHIP] = '[green]'
+COLOR_SCHEME[EMPTY] = '[black]'
+COLOR_SCHEME[UNKNOWN] = '[green]'
+
+
+class Highlighter(RegexHighlighter):
+    """Apply style to anything on a board."""
+    base_style = 'color.'
+    highlights = [f'(?P<ship>({SHIP}))', f'(?P<wound>({WOUND}))',f'(?P<kill>({KILL}))',f'(?P<missed>({MISSED}))',
+                  f'(?P<not_perspective>({NOT_PERSPECTIVE}))',r"(?P<unknown>(\*))"]
+
+
+theme = Theme({'color.ship': 'black on blue','color.wound': 'red on blue','color.kill': 'yellow on red',
+               'color.missed': 'magenta on blue','color.not_perspective': 'red on blue','color.unknown': 'blue on green'})
+
+console = Console(highlighter=Highlighter(), theme=theme)
 
 class SeaBattle:
     names_ships = {1: 'катер', 2: 'корвет', 3: 'фрегат', 4: 'крейсер', 5: 'линкор', 6: 'суперлинкор', 7: 'мегалинкор',
@@ -273,18 +295,18 @@ class SeaBattle:
 
     def show_users_boards (self):
         '''Показывает 1 или оба поля пользователя. Слева lazy_users_board или пустой, а второй генерится на основе my_board бота '''
-        # todo сделать подсветку
-        console = Console()
-        table = Table(show_header=True, box=box.ROUNDED, header_style="bold green", show_lines=True)
+
+        table = Table(show_header=True, show_footer=True, box=box.ROUNDED, header_style="bold yellow",
+                      footer_style="bold yellow", show_lines=True)
         # сначала делаем столбцы
-        table.add_column(' ', style="bold", width=2)  #для цифр
+        table.add_column(' ', style="bold yellow", width=2)  #для цифр
         for number in range(1072, ord(WIDTH) + 1):
-            table.add_column(chr(number), style="bold", width=1)
-        table.add_column(' ', style="bold", width=2)  # для цифр
+            table.add_column(header=chr(number),footer=chr(number), width=1)
+        table.add_column(' ', style="bold yellow", width=2)  # для цифр
         for number in range(1072, ord(WIDTH) + 1):
-            table.add_column(chr(number), style="bold", width=1)
-        table.add_column(' ', style="bold", width=2)  # для цифр
-        table.add_column('Справка', style="bold", width=40)  # для справки
+            table.add_column(header=chr(number),footer=chr(number), width=1)
+        table.add_column(' ', style="bold yellow", width=2)  # для цифр
+        table.add_column(header='Справка', width=40)  # для справки
         console.print(table)
         # теперь заполняем столбцы значениями
         if not self.lazy_user_board:  # если пользовательского поля нет, то показывается что набил уже бот
@@ -331,7 +353,8 @@ class SeaBattle:
             collect = []
             for n in range(1072, ord(WIDTH) + 1):
                 char = chr(n)
-                collect.append(board[char][number])
+                color_char = COLOR_SCHEME[board[char][number]] + board[char][number] + '[/' + COLOR_SCHEME[board[char][number]][1:]
+                collect.append(color_char)
             transposed_board[number + 1] = tuple(collect) # храним с 1 ...
         return transposed_board
 
