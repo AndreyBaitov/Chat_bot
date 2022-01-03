@@ -7,6 +7,9 @@ import os
 import time, random, re
 from pprint import pprint
 import logging
+from rich import print, box
+from rich.console import Console
+from rich.table import Table
 
 log = logging.getLogger('sea_battle')
 log.setLevel(logging.INFO)
@@ -17,10 +20,10 @@ log.addHandler(fh)
 log.setLevel(logging.INFO)
 
 
-WOUND = 'ø' # '\u22A1' ⊡ Раненый корабль
-KILL = '®'  # chr(9949) ⛝ Убитый корабль
-MISSED = chr(870)  # ͦ Промах
-SHIP = 'О'  # '\u2395' = '⎕' Целый корабль
+WOUND = '⊡' # ø '\u22A1' ⊡ Раненый корабль
+KILL = '⛝'  # ® chr(9949) ⛝ Убитый корабль
+MISSED = chr(1607)  #chr(870) ͦ Промах
+SHIP = '⎕'  # '\u2395' = '⎕' Целый корабль
 NOT_PERSPECTIVE = '\u224B'  # '≋' выставляется автоматом вокруг найденных кораблей.
 EMPTY = ' '
 WIDTH = 'й'
@@ -104,7 +107,7 @@ class SeaBattle:
                 return f'{max(ships_in_game)}-палубник Не влезет на поле {DEEP}X{DEEP}! Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
             line_reference = ''
             for i in range(max(ships_in_game)):
-                line_reference += f'{game.names_ships[i + 1]} это {i + 1}-палубник\n'
+                line_reference += f'{game.names_ships[i + 1]} это {i + 1}-палубник\n'  # todo убрать те виды кораблей, которых нет в списке
                 self.ships = ships_in_game [:] #
                 self.remaining_users_ships = self.ships[:]  # список вражеских кораблей для определения конца игры
                 self.remaining_bots_ships = self.ships[:]  # отдельный список для оставшихся в живых кораблей
@@ -256,65 +259,80 @@ class SeaBattle:
                 print(f'{number:3} {my_board[number]:^20}| {number:<3}    |   {number:3} {user_board[number]:^20}| {number:<3}')
         return '*'*150
 
+    def replace_obj_in_boards (self, dirty_board: dict, old: str, new: str) -> dict:
+        '''Меняет во входящем словаре old на new'''
+        clean_board = {}
+        for key in dirty_board.keys():
+            clean_board[key] = [' ' for _ in range(DEEP)]
+            for space in range(DEEP):
+                if dirty_board[key][space] == old:
+                    clean_board[key][space] = new
+                else:
+                    clean_board[key][space] = dirty_board[key][space]
+        return clean_board
+
     def show_users_boards (self):
         '''Показывает 1 или оба поля пользователя. Слева lazy_users_board или пустой, а второй генерится на основе my_board бота '''
-        if not self.lazy_user_board:  # если пользовательского поля нет, то показывается что набил уже бот
-            board = {}
-            for number in range(1072, ord(WIDTH) + 1):
-                board[chr(number)] = [' ' for _ in range(DEEP)]
-                for space in range(DEEP):
-                    if self.enemy_board[chr(number)][space] == NOT_PERSPECTIVE:  # чтобы не загрязнять картинку поля
-                        board[chr(number)][space] = EMPTY
-                    else:
-                        board[chr(number)][space] = self.enemy_board[chr(number)][space]
-        else:
-            board = self.lazy_user_board
-        user_board = self.board_to_str(board)
-
-        bot_board = {}  #создаем поле бота, заменяя все корабли и пусто на *
+        # todo сделать подсветку
+        console = Console()
+        table = Table(show_header=True, box=box.ROUNDED, header_style="bold green", show_lines=True)
+        # сначала делаем столбцы
+        table.add_column(' ', style="bold", width=2)  #для цифр
         for number in range(1072, ord(WIDTH) + 1):
-            bot_board[chr(number)] = [' ' for _ in range(DEEP)]
-            for space in range(DEEP):
-                if self.my_board[chr(number)][space] == SHIP or self.my_board[chr(number)][space] == EMPTY:
-                    bot_board[chr(number)][space] = UNKNOWN
-                elif self.my_board[chr(number)][space] == NOT_PERSPECTIVE:  # чтобы не искажать картинку поля
-                    bot_board[chr(number)][space] = EMPTY
-                else:
-                    bot_board[chr(number)][space] = self.my_board[chr(number)][space]
-        enemy_board = self.board_to_str(bot_board)
+            table.add_column(chr(number), style="bold", width=1)
+        table.add_column(' ', style="bold", width=2)  # для цифр
+        for number in range(1072, ord(WIDTH) + 1):
+            table.add_column(chr(number), style="bold", width=1)
+        table.add_column(' ', style="bold", width=2)  # для цифр
+        table.add_column('Справка', style="bold", width=40)  # для справки
+        console.print(table)
+        # теперь заполняем столбцы значениями
+        if not self.lazy_user_board:  # если пользовательского поля нет, то показывается что набил уже бот
+            left_board = self.enemy_board
+        else:
+            left_board = self.lazy_user_board
+            # чтобы не загрязнять картинку поля чистим NOT_PERSPECTIVE
+        left_board = self.replace_obj_in_boards(left_board,old=NOT_PERSPECTIVE,new=EMPTY)
 
+        # создаем поле бота, заменяя все корабли и пусто на *
+        right_board = self.replace_obj_in_boards(self.my_board, old=SHIP, new=UNKNOWN)
+        right_board = self.replace_obj_in_boards(right_board, old=EMPTY, new=UNKNOWN)
+        right_board = self.replace_obj_in_boards(right_board, old=NOT_PERSPECTIVE, new=EMPTY)
+
+        # создаем справку
         reference = {i:'' for i in range(DEEP + 1)}  # справка для символов
-        reference[2] = f'|{SHIP}| = Корабль'
-        reference[3] = f'|{WOUND}| = Раненый корабль'
-        reference[4] = f'|{KILL}| = Убитый корабль'
-        reference[5] = f'|{MISSED}| = Промах'
-        reference[6] = f'|{SHIP}| = Целый корабль'
-        reference[7] = f'|{UNKNOWN}| = Сюда еще не стреляли'
-        reference[8] = f'|{EMPTY}| = Сюда можно и не стрелять'
-        reference[9] = f'|{SHIP}| = {self.names_ships[1]}   |{SHIP}{SHIP}| = {self.names_ships[2]} '
-        reference[10] = f'|{SHIP}{SHIP}{SHIP}| = {self.names_ships[3]}   |{SHIP}{SHIP}{SHIP}{SHIP}| = {self.names_ships[4]} '
-        print('*' * 66)
-        print('{:^33} {:^33}'.format('Твоё поле', 'Твои попытки'))
-        for number in range(DEEP + 1):  # +1 для шапки
-            print(f'{number:3} {user_board[number]:^20}| {number:<3}    |   {number:3} {enemy_board[number]:^20}| {number:<3}    |   {reference[number]}')
-        print('*' * 66)
-        return (user_board, enemy_board)   # возврат пока только для тестирования
+        reference[1] = f'{SHIP} = Корабль'
+        reference[2] = f'{WOUND} = Раненый корабль'
+        reference[3] = f'{KILL} = Убитый корабль'
+        reference[4] = f'{MISSED} = Промах'
+        reference[5] = f'{SHIP} = Целый корабль'
+        reference[6] = f'{UNKNOWN} = Сюда еще не стреляли'
+        reference[7] = f'{EMPTY} = Сюда можно и не стрелять'
+        reference[8] = f'{SHIP} = {self.names_ships[1]}'
+        reference[9] = f'{SHIP}{SHIP} = {self.names_ships[2]}'
+        reference[10] = f'{SHIP}{SHIP}{SHIP} = {self.names_ships[3]}'
+
+        # заполняем строки
+        right_board = self.board_to_str(right_board)
+        left_board = self.board_to_str(left_board)
+        for number in range(1, DEEP + 1):
+            left_line = left_board[number]
+            right_line = right_board[number]
+            table.add_row(str(number), *left_line, str(number), *right_line, str(number),reference[number])
+        console.print(table)
+        return (left_board, right_board)   # возврат пока только для тестирования
 
     def board_to_str(self, board):
-        '''Транспонирует поле-словарь в {1:"строка"}'''
+        '''Транспонирует поле-словарь в {1:кортеж("симв","симв",...)}'''
         if board == {}:
             return False
         transposed_board = {}
         for number in range(DEEP):
-            transposed_board[number + 1] = ''  # храним с 1 ...
+            collect = []
             for n in range(1072, ord(WIDTH) + 1):
                 char = chr(n)
-                transposed_board[number + 1] = transposed_board[number + 1] + '|' + board[char][number]
-        transposed_board[0] = []  # для шапки
-        line = ''
-        for number in range(1072, ord(WIDTH) + 1):  #добавляем верхнюю строку буквенных обозначений
-            line = line + '|' + chr(number)
-        transposed_board[0] = line
+                collect.append(board[char][number])
+            transposed_board[number + 1] = tuple(collect) # храним с 1 ...
         return transposed_board
 
     def users_message(self, message: str):
@@ -335,7 +353,7 @@ class SeaBattle:
         elif any([_ in message for _ in ['покажи', 'показать', 'поле']]):  # проверка показ полей
             self.show_users_boards()  #todo переделать на показ картинки полей
             return 'Океюшки'
-        elif any([_ in message for _ in ['помощь']]):
+        elif any([_ in message for _ in ['помощь', 'помошь', 'помоги', 'хелп']]):
             return 'Чтобы выйти, набери "выход".\nЧтобы получить список сохравнишхся в живых кораблей, набери "корабли"\nЧтобы увидеть свои поля, набери "покажи"'
         elif any([_ in message for _ in ['корабли', 'какие', 'сколько']]):
             print('У меня остались', self.remaining_bots_ships)
