@@ -402,6 +402,8 @@ class SeaBattle:
         elif self.lazy_user_board[x][y-1] == EMPTY:
             answer = 'Ч**т! Мимо!'
             self.lazy_user_board[x][y - 1] = MISSED
+        elif not self.remaining_users_ships: #  проверка в конце игры
+            return ''
         else:
             raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
         return answer + ' '
