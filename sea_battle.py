@@ -538,18 +538,32 @@ class SeaBattle:
         else:                           #Теперь проверяем куда ударил игрок
             x, y = self.refactor(turn)
             if self.bot_board[x][y - 1] == EMPTY:      # промах
-                # если уровень сложности 3 и есть еще места для корабля призрака и это одно из этих мест
-                if self.level == 3 and len(self.cheat_list) > 1  and (x, y) in self.cheat_list:
-                    log.info(f'run cheat mode. remove ({x},{y}) from {self.cheat_list}')
-                    self.cheat_list.remove((x,y))  # просто удаляем из списка потенциальных мест корабля-призрака
-                elif self.level == 3 and len(self.cheat_list) == 1 and (x, y) in self.cheat_list:  # всё, увиливать дальше некуда, то ставим корабль и говорим, что попал
-                    log.info(f'cheat mode off. All places are over! last place ({x},{y}) is removing from {self.cheat_list}')
+                # cheat_code
+                #Чтобы бот не всегда тянул до последнего из вариантов, и это не было так заметно, иногда он оканчивает на предпоследнем варианте
+                if self.level == 3 and len(self.cheat_list) == 2 and (x, y) in self.cheat_list and random.choice([True, False]):
+                    log.info(f'cheat mode off. Unfortunately, not last place ({x},{y}) is removing from {self.cheat_list}, but it is the fatum!')
                     self.bot_board[x][y-1] == SHIP
+                    self.cheat_list = []
                     self.status_bots_living_ships[self.cheat_number]['place'] = [(x,y)]
                     answer, situation = self.check_killing_ship(place=turn, board=self.bot_board,
                                                                 status=self.status_bots_living_ships,
                                                                 ships=self.remaining_bots_ships)
                     return (answer, situation)
+                # если уровень сложности 3 и есть еще места для корабля призрака и это одно из этих мест
+                elif self.level == 3 and len(self.cheat_list) > 1  and (x, y) in self.cheat_list:
+                    log.info(f'run cheat mode. remove ({x},{y}) from {self.cheat_list}')
+                    self.cheat_list.remove((x,y))  # просто удаляем из списка потенциальных мест корабля-призрака
+                # всё, увиливать дальше некуда, то ставим корабль и говорим, что попал
+                elif self.level == 3 and len(self.cheat_list) == 1 and (x, y) in self.cheat_list:
+                    log.info(f'cheat mode off. All places are over! last place ({x},{y}) is removing from {self.cheat_list}')
+                    self.bot_board[x][y-1] == SHIP
+                    self.cheat_list = []
+                    self.status_bots_living_ships[self.cheat_number]['place'] = [(x,y)]
+                    answer, situation = self.check_killing_ship(place=turn, board=self.bot_board,
+                                                                status=self.status_bots_living_ships,
+                                                                ships=self.remaining_bots_ships)
+                    return (answer, situation)
+                # обычная обработка без читов и при большом списке с читами
                 self.bot_board[x][y - 1] = MISSED
                 bot_turn = self.bot_turn()
                 answer = f'Мимо! Мой ход: {bot_turn}'
