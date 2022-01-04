@@ -18,7 +18,7 @@ fh = logging.FileHandler("log/seabattle.log", 'a', 'utf-8')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
 log.addHandler(fh)
-log.setLevel(logging.WARNING)
+log.setLevel(logging.INFO)
 
 WIDTH = 'й'  # Ширина поля
 DEEP = 10    # по умолчанию поле 10х10
@@ -59,7 +59,8 @@ class SeaBattle:
         self.enemy_board = {}  #предполагаемое для бота поле игрока
         self.situation = 'start the game'
         self.show_every_turn = True  # переменная показывания поля каждый ход
-        self.my_board = {}
+        self.bot_board = {}
+        self.cheat_list = []
 
     def start_game(self, message):
         '''Опрашивает игрока и создает всё необходимое для игры'''
@@ -163,12 +164,12 @@ class SeaBattle:
                 self.enemy_board[chr(number)] = ['*' for _ in range(DEEP)]
             for _ in range(5):  # пять попыток сделать поле боту
                 try:
-                    self.my_board, self.status_bots_living_ships = self.create_board()
+                    self.bot_board, self.status_bots_living_ships = self.create_board()
                 except TimeoutError:
                     continue
                 else:
                     break
-            if not self.my_board:   # если так и не удалось сгенерировать поле
+            if not self.bot_board:   # если так и не удалось сгенерировать поле
                 self.situation = 'start the game. Step 2'
                 return 'Мне не удалось расставить такое количество кораблей, попробуй другой список судов. Формат "1 4, 2 3, 3 2, 4 1".'
 
@@ -179,10 +180,11 @@ class SeaBattle:
             if any([_ in message for _ in ['1', 'простой']]):  # базовый честный уровень сложности
                 self.level = None
             elif any([_ in message for _ in ['2', 'сложный']]): # бот на удар в уже проверенную или бесполезную клетку отвечает мимо!
-                self.level = 1
-            elif any([_ in message for _ in ['3', 'невозможный']]): # бот читерит, выдерживая один 1-палубный корабль, невыставленным, чтобы выставить только в самом крайнем случае, в самое последнее, оставшееся место
                 self.level = 2
-                self.cheat_bot_board()
+            elif any([_ in message for _ in ['3', 'невозможный']]): # бот читерит, выдерживая один 1-палубный корабль, невыставленным, чтобы выставить только в самом крайнем случае, в самое последнее, оставшееся место
+                self.level = 3
+                self.cheat_list = self.cheat_bot_board()
+                log.info(f'Cheat mode on. Potential places are {self.cheat_list}')
             else:
                 return 'Не понял!'
             self.situation = 'user must try to hit'
@@ -190,10 +192,30 @@ class SeaBattle:
 
         return 'Что-то непонятное, повтори!'
 
-    def cheat_bot_board(self):
+    def cheat_bot_board(self) -> list:
         '''Убирает с поля бота 1-палубный корабль, если таковой есть, оставляя его в списке кораблей, а затем составляет
         список потенциальных мест для него и рисует его только тогда, когда такое место остается лишь 1'''
-        pass #todo
+        search = None
+        for key in self.status_bots_living_ships.keys():  # ищем самый последний из 1-палубников
+            if self.status_bots_living_ships[key]['hits'] == 1:
+                search = key
+        if not search:  # если 1-палубников нет, возвращаем пустой список, то есть бот читить не будет
+            return []
+        x, y = self.status_bots_living_ships[search]['place'][0]
+        self.status_bots_living_ships[search]['place'] = [('0', 0)]
+        self.cheat_number = search
+        self.bot_board[x][y-1] = EMPTY
+        cheat_list = []
+        for key in self.bot_board.keys():
+            for place in range(DEEP):
+                if self.bot_board[key][place] == EMPTY:
+                    surround = self.search_full_surround(x=key,y=place+1)
+                    for x_ord, y_ord in surround.values(): # если в окружении нет корабля, то это потенциальное место для нашего корабля-призрака.
+                        if self.bot_board[x_ord][y_ord-1] == SHIP:
+                            break
+                    else:
+                        cheat_list.append((key,place+1))
+        return cheat_list
 
     def create_board(self):
         '''создает поле бота или ленивого игрока, случайным перебором возможных мест с проверкой валидности'''
@@ -272,19 +294,48 @@ class SeaBattle:
         return (x, y)  # Тест пройден
 
     def __repr__(self):
-        '''функция изображения самого экземпляра, должна выводить 3 поля (стрельба бота), (стрельба игрока)
-        и (поле игрока) если self.lazy_user_board не пустой. Это чисто для отладки. '''
-        my_board = self.board_to_str(self.my_board)
-        user_board = self.board_to_str(self.enemy_board)
-        lazy_user_board = self.board_to_str(self.lazy_user_board)
-        print('*'*150)
-        if lazy_user_board:
-            for number in range(DEEP+1):  # +1 для шапки
-                print(f'{number:3} {my_board[number]:^20}| {number:<3}    |   {number:3} {user_board[number]:^20}| {number:<3}   |   |   {number:3} {lazy_user_board[number]:^20}| {number:<3}')
-        else:
-            for number in range(DEEP+1):  # +1 для шапки
-                print(f'{number:3} {my_board[number]:^20}| {number:<3}    |   {number:3} {user_board[number]:^20}| {number:<3}')
-        return '*'*150
+        '''функция изображения самого экземпляра, должна выводить 2 поля (стрельба бота), (поле бота). Это чисто для отладки. '''
+        console = Console()
+        table = Table(show_header=True, show_footer=True, box=box.ROUNDED, header_style="bold yellow",
+                      footer_style="bold yellow", show_lines=True)
+        # сначала делаем столбцы
+        table.add_column(' ', style="bold yellow", width=2)  # для цифр
+        for number in range(1072, ord(WIDTH) + 1):
+            table.add_column(header=chr(number), footer=chr(number), width=1)
+        table.add_column(' ', style="bold yellow", width=2)  # для цифр
+        for number in range(1072, ord(WIDTH) + 1):
+            table.add_column(header=chr(number), footer=chr(number), width=1)
+        table.add_column(' ', style="bold yellow", width=2)  # для цифр
+        table.add_column(header='Справка', width=40)  # для справки
+        console.print(table)
+        # теперь заполняем столбцы значениями
+
+        left_board = self.bot_board
+        right_board = self.enemy_board
+
+        # создаем справку
+        reference = {i: '' for i in range(DEEP + 1)}  # справка для символов
+        reference[1] = f'{SHIP} = Корабль'
+        reference[2] = f'{WOUND} = Раненый корабль'
+        reference[3] = f'{KILL} = Убитый корабль'
+        reference[4] = f'{MISSED} = Промах'
+        reference[5] = f'{SHIP} = Целый корабль'
+        reference[6] = f'{UNKNOWN} = Сюда еще не стреляли'
+        reference[7] = f'{EMPTY} = Сюда можно и не стрелять'
+        reference[8] = f'{SHIP} = {self.names_ships[1]}'
+        reference[9] = f'{SHIP}{SHIP} = {self.names_ships[2]}'
+        reference[10] = f'{SHIP}{SHIP}{SHIP} = {self.names_ships[3]}'
+
+        # заполняем строки
+        right_board = self.board_to_str(right_board)
+        left_board = self.board_to_str(left_board)
+        for number in range(1, DEEP + 1):
+            left_line = left_board[number]
+            right_line = right_board[number]
+            table.add_row(str(number), *left_line, str(number), *right_line, str(number), reference[number])
+        console.print(table)
+        return ' '
+
 
     def replace_obj_in_boards (self, dirty_board: dict, old: str, new: str) -> dict:
         '''Меняет во входящем словаре old на new'''
@@ -323,7 +374,7 @@ class SeaBattle:
         left_board = self.replace_obj_in_boards(left_board,old=NOT_PERSPECTIVE,new=EMPTY)
 
         # создаем поле бота, заменяя все корабли и пусто на *
-        right_board = self.replace_obj_in_boards(self.my_board, old=SHIP, new=UNKNOWN)
+        right_board = self.replace_obj_in_boards(self.bot_board, old=SHIP, new=UNKNOWN)
         right_board = self.replace_obj_in_boards(right_board, old=EMPTY, new=UNKNOWN)
         right_board = self.replace_obj_in_boards(right_board, old=NOT_PERSPECTIVE, new=EMPTY)
 
@@ -432,7 +483,7 @@ class SeaBattle:
 
     def result_game(self) -> str:
         '''Вычисляет ответ юзеру при любом окончании игры'''
-        bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.my_board)
+        bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
         user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
         if bots_score > users_score:
             winner = f'Моя победа по очкам: {bots_score} против {users_score}'
@@ -486,13 +537,25 @@ class SeaBattle:
             situation = self.situation  # ждём того же самого
         else:                           #Теперь проверяем куда ударил игрок
             x, y = self.refactor(turn)
-            if self.my_board[x][y-1] == EMPTY:      # промах
-                self.my_board[x][y-1] = MISSED
+            if self.bot_board[x][y - 1] == EMPTY:      # промах
+                # если уровень сложности 3 и есть еще места для корабля призрака и это одно из этих мест
+                if self.level == 3 and len(self.cheat_list) > 1  and (x, y) in self.cheat_list:
+                    log.info(f'run cheat mode. remove ({x},{y}) from {self.cheat_list}')
+                    self.cheat_list.remove((x,y))  # просто удаляем из списка потенциальных мест корабля-призрака
+                elif self.level == 3 and len(self.cheat_list) == 1 and (x, y) in self.cheat_list:  # всё, увиливать дальше некуда, то ставим корабль и говорим, что попал
+                    log.info(f'cheat mode off. All places are over! last place ({x},{y}) is removing from {self.cheat_list}')
+                    self.bot_board[x][y-1] == SHIP
+                    self.status_bots_living_ships[self.cheat_number]['place'] = [(x,y)]
+                    answer, situation = self.check_killing_ship(place=turn, board=self.bot_board,
+                                                                status=self.status_bots_living_ships,
+                                                                ships=self.remaining_bots_ships)
+                    return (answer, situation)
+                self.bot_board[x][y - 1] = MISSED
                 bot_turn = self.bot_turn()
                 answer = f'Мимо! Мой ход: {bot_turn}'
                 situation = 'wait answer from user'
-            elif self.my_board[x][y-1] == SHIP:  # попал, проверка на целостность всего корабля
-                answer, situation = self.check_killing_ship(place=turn,board=self.my_board,status=self.status_bots_living_ships, ships=self.remaining_bots_ships)
+            elif self.bot_board[x][y - 1] == SHIP:  # попал, проверка на целостность всего корабля
+                answer, situation = self.check_killing_ship(place=turn, board=self.bot_board, status=self.status_bots_living_ships, ships=self.remaining_bots_ships)
             else: # wound, kill, missed или not_perspective, то есть ход глупый
                 if not self.level:                          # уровень сложности 0
                     answer = 'Уже было, давай другое место!'
@@ -517,7 +580,7 @@ class SeaBattle:
     def search_variants_for_hit_wounded_ships(self, x: str, y: int, old_assuming_hit: list):
         '''Дополняет и возвращает список кортежей боту для более точного поиска и добивания корабля противника'''
         assuming_hit = old_assuming_hit[:]
-        log.info(f'Список перспективных целей бота в начале поиска перспективных целей = {assuming_hit}')
+        log.debug(f'Список перспективных целей бота в начале поиска перспективных целей = {assuming_hit}')
         surround = self.search_ortogonal_surround(x, y)  # определяем окружение
         perspective_direction = []
         for x_ord, y_ord in surround.values():   # ищем вокруг точки раненых
@@ -551,7 +614,7 @@ class SeaBattle:
                 assuming_hit.append(result)
         set_list = set(assuming_hit)    # убираем возможные дубляжи точек
         assuming_hit = list(set_list)
-        log.info(f'Список перспективных целей бота в конце поиска перспективных целей = {assuming_hit}')
+        log.debug(f'Список перспективных целей бота в конце поиска перспективных целей = {assuming_hit}')
         return assuming_hit
 
     def recourse_search(self, x: str, y: int, matrix_movement: tuple):
@@ -677,7 +740,7 @@ class SeaBattle:
         Также выдает ответ строкой. Если мы попали, сразу дает следующий ход в той же строке'''
         reply = reply.lower()
         x,y = self.previously_bot_turn
-        log.info(f'Список перспективных целей бота in got_reply= {self.assuming_hit}')
+        log.debug(f'Список перспективных целей бота in got_reply= {self.assuming_hit}')
         if 'попал' in reply or 'ранил' in reply:
             self.enemy_board[x][y - 1] = WOUND  # надо записать в поле проверок, очертить круг вариантов и выдать еще один удар
             self.status_users_ship['hits'] += 1  # ведем словарь жертвы типа {hits=2, place=[('a',1),('b',2)]} для обработки, где hits это не жизни, а удары
