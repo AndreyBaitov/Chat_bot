@@ -1,9 +1,3 @@
-'''Игра в морской бой. функцию рисования поля можно вынести отдельно для различной вариации в виде картинки
-или текстом
-Добавить 2 уровня честности бота: на честном уровне он сообщает, что игрок сюда уже бил и ждёт другую клетку, а на нечестном, говорит мерзко мимо, и дает свой удар
-3 уровень жульничества, когда бот придерживает последний 1-палубный корабль, устанавливая его только когда кончаются для этого место
-
-'''
 import os
 import time, random, re
 from pprint import pprint
@@ -13,7 +7,6 @@ from rich.console import Console
 from rich.table import Table
 
 log = logging.getLogger('sea_battle')
-log.setLevel(logging.INFO)
 fh = logging.FileHandler("log/seabattle.log", 'a', 'utf-8')
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 fh.setFormatter(formatter)
@@ -419,13 +412,16 @@ class SeaBattle:
         '''Сообщение от игрока, которое надо обработать в зависимости от текущей ситуации
            предположим мы будем хранить текущее состояние в отдельной переменной'''
         message = message.lower()
-        if 'start the game' in self.situation:  # Начало игры, отправляем в соответствующую фунцкцию
-            message = self.start_game(message)  #
+
+        # Начало игры, отправляем в соответствующую фунцкцию
+        if 'start the game' in self.situation:
+            message = self.start_game(message)
             return message
 
+        # Обработка команд боту
         answer = ''
         situation = self.situation
-        if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):  # проверка на команды
+        if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):
             answer = self.result_game()
             situation = 'end the game'
             self.situation = situation
@@ -435,13 +431,14 @@ class SeaBattle:
             return 'Океюшки'
         elif any([_ in message for _ in ['помощь', 'помошь', 'помоги', 'хелп']]):
             return 'Чтобы выйти, набери "выход".\nЧтобы получить список сохравнишхся в живых кораблей, набери "корабли"\nЧтобы увидеть свои поля, набери "покажи"'
-        elif any([_ in message for _ in ['корабли', 'какие', 'сколько']]):
-            print('У меня остались', self.remaining_bots_ships)
-            print('У тебя остались', self.remaining_users_ships)
-            return ' '
+        elif any([_ in message for _ in ['корабли', 'какие', 'сколько', 'кораблей', 'какой', 'счёт']]):
+            bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
+            user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
+            return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}'
 
+        # Обработка хода игрока/бота в игре
         adding = ''
-        if self.situation == 'check users board yourself':  # Значит мы сами проверяем попали или мимо
+        if self.situation == "check user's board myself":  # Значит мы сами проверяем попали или мимо
             message = self.check_lazy_users_board()  # adding - Строка результата нашего действия
             adding = message
             if self.situation == 'end the game':
@@ -454,7 +451,7 @@ class SeaBattle:
             answer, situation = self.got_reply_about_our_turn(message)
             answer = adding + answer  # При обычном ничего не добавляется, если мы подменяли юзера, то добавится резалт
         if situation == 'wait answer from user' and self.lazy_user_board:  # если мы ждём ответа, а у нас есть его поле
-            situation = 'check users board yourself'
+            situation = "check user's board myself"
         self.situation = situation
         if self.show_every_turn:  # показывать каждый ход
             self.show_users_boards()
@@ -499,7 +496,8 @@ class SeaBattle:
         return answer
 
     def count_result_game(self, ships: list, board: dict) -> tuple:
-        '''Вычисляет по окончании игры оставшиеся корабли и выдает строку и число выживших судов'''
+        '''Вычисляет по окончании игры оставшиеся корабли и выдает строку и сумму палуб выживших судов'''
+
         remaining_ships = 'осталось: ' #
         dict_ships = {x:0 for x in ships}   # собираем словарь из уникальных типов кораблей
         for ship in ships:                  # подсчитываем количество каждого типа
@@ -516,6 +514,7 @@ class SeaBattle:
             remaining_ships = remaining_ships[:-2]  #отрезаем последние 2 лишних символа
         else:
             remaining_ships = 'кораблей то и не осталось'
+        # Подсчёт очков
         surviving_part_of_ships = 0
         if board:
             for line in board.values():
@@ -529,10 +528,9 @@ class SeaBattle:
         return (remaining_ships, surviving_part_of_ships)
 
     def check_hit(self, turn: str):
-        '''Проверяет попал ли игрок и ставит переменную состояния в зависимости от результата. Также выдает ответ строкой. Если игрок промазал, сразу дает свой выстрел в той же строке'''
-        answer = f'Необработанная ситуация {turn}' # своего рода дебагирование
-        turn = self.check_phrase_about_try(turn)  # проверяет валидность хода игрока
-        if not turn:  # бот не понял, что сказал игрок
+        '''Проверяет попал ли игрок. Возвращает ответ и статус ожидания в зависимости от результата.'''
+
+        if not (turn := self.check_phrase_about_try(turn)):  # проверяет валидн1ость хода игрока
             answer = 'Не понял'
             situation = self.situation  # ждём того же самого
         else:                           #Теперь проверяем куда ударил игрок
@@ -566,7 +564,7 @@ class SeaBattle:
                 # обычная обработка без читов и при большом списке с читами
                 self.bot_board[x][y - 1] = MISSED
                 bot_turn = self.bot_turn()
-                answer = f'Мимо! Мой ход: {bot_turn}'
+                answer = f'Мимо!\nМой ход: {bot_turn}'
                 situation = 'wait answer from user'
             elif self.bot_board[x][y - 1] == SHIP:  # попал, проверка на целостность всего корабля
                 answer, situation = self.check_killing_ship(place=turn, board=self.bot_board, status=self.status_bots_living_ships, ships=self.remaining_bots_ships)
@@ -576,7 +574,7 @@ class SeaBattle:
                     situation = 'user must try to hit'
                 else:                                       # уровень сложности 1,2...
                     bot_turn = self.bot_turn()  # ход бота
-                    answer = f'Мимо! Мой ход: {bot_turn}'
+                    answer = f'Мимо!\nМой ход: {bot_turn}'
                     situation = 'wait answer from user'
         return (answer, situation)
 
@@ -623,8 +621,7 @@ class SeaBattle:
             for place in not_perspective_places:  # проходим по списку и проверяем их в списке потенциальных целей
                 if place in assuming_hit:         # и если они там есть просто удаляем их из списка потенц. целей
                     assuming_hit.remove(place)
-            result = self.recourse_search(x=x_ord, y=y_ord,matrix_movement=matrix_movement)  # поиск концов
-            if result:
+            if result := self.recourse_search(x=x_ord, y=y_ord,matrix_movement=matrix_movement):  # поиск концов
                 assuming_hit.append(result)
         set_list = set(assuming_hit)    # убираем возможные дубляжи точек
         assuming_hit = list(set_list)
@@ -647,14 +644,8 @@ class SeaBattle:
 
     def search_ortogonal_surround(self, x: str, y: int) -> dict:
         '''Составление словаря ортогонального окружения точки'''
-        left = chr(ord(x) - 1)  #Составляем вариант окружения
-        right = chr(ord(x) + 1)
-        iter_dict = dict(u=(x,y-1),d=(x,y+1),r=(right,y),l=(left,y))  # проверить надо вправо влево, вверх, вниз: ненужные ключи потом удалим
-        surround = {}
-        for key in iter_dict.keys():
-            x_ord, y_ord = iter_dict[key]
-            if self.check_valid_place(x_ord, y_ord):  # валидно в диапазоне
-                surround[key] = (x_ord,y_ord)
+        full_surround = self.search_full_surround(x=x,y=y)
+        surround = {key: full_surround[key] for key in full_surround.keys() if len(key)==1}
         return surround
 
     def search_full_surround(self, x: str, y: int)-> dict:
@@ -674,9 +665,7 @@ class SeaBattle:
 
     def check_valid_place(self, x: str, y: int):
         '''Обрабатывает валидность точки в рамках поля. Если выходит, выдает False, при норме выдает True'''
-        if ord(x) < 1072 or ord(x) > ord(WIDTH) or y < 1 or y > DEEP:
-            return False
-        return True
+        return not (ord(x) < 1072 or ord(x) > ord('й') or y < 1 or y > 10)
 
     def check_phrase_about_try(self, phrase: str):
         '''Обрабатывает ответ игрока на валидность попытки. Если бот не понял, выдает False, если понял, то приводит к стандартному виду и отдает строкой'''
@@ -713,7 +702,7 @@ class SeaBattle:
                         variants.append((x,y+1))
                     index += 1
             if len(variants) < (sum(self.remaining_users_ships) - self.status_users_ship['hits']): # если у противника больше кораблей, чем мест
-                bot_turn = 'У меня кончились ходы, ты не жулик?'
+                bot_turn = 'Да ты похоже жульничаешь. Я так не играю!'
                 return bot_turn
             x, y = random.choice(variants)
             bot_turn = x + ' ' + str(y)
@@ -761,7 +750,8 @@ class SeaBattle:
             self.status_users_ship['place'].append((x, y))
             self.assuming_hit = self.search_variants_for_hit_wounded_ships(x, y, self.assuming_hit)  # обновляем список перспективных целей
             bot_turn = self.bot_turn()
-            answer = random.choice(['Отлично!','Врагу не сдается ваш гордый Варяг!','Ха!','Иллитидская сила!','Прямой наводкой!','Ура!']) + ' : ' + bot_turn
+            answer = random.choice(['Отлично!','Врагу не сдается ваш гордый Варяг!','Ха!','Иллитидская сила!','Прямой наводкой!','Ура!']) + \
+                     '\n' + random.choice(['Теперь','А мы вот так','Сейчас','Попробую','Эээ']) + ': ' + bot_turn
             situation = 'wait answer from user'
         elif 'убил' in reply or 'прикончил' in reply:  # надо записать в поле проверок и выдать еще один удар
             self.status_users_ship['hits'] += 1
@@ -770,7 +760,7 @@ class SeaBattle:
                 if self.status_users_ship['hits'] in self.remaining_users_ships:  # в списке есть корабль
                     self.remaining_users_ships.remove(self.status_users_ship['hits'])
                 else:
-                    raise TypeError(f'В списке не обнаружено {self.status_users_ship["hits"]}-палубных кораблей, остались корабли = {self.remaining_users_ships}')  #todo заменить на ошибку своего типа и где то ее ловить и как то обрабатывать
+                    return ('Да ты похоже жульничаешь. Я так не играю!','end the game')
             self.filling_not_perspective(self.status_users_ship, board=self.enemy_board)  #там заполняется места убитого корабля на KILL, а вокруг ставятся флаги NOT_PERSPECTIVE
             self.status_users_ship['hits'] = 0  # обнуляем словарь для следующей жертвы
             self.status_users_ship['place'] = []
