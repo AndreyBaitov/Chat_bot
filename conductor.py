@@ -48,9 +48,7 @@ except ImportError:
     exit('Copy settings.py.default to settings.py and set TOKEN as str and GROUP_ID as number!')
 
 #from for_work_to_users import User
-
 log.setLevel(logging.DEBUG)
-#TODO где то в коде TypeError: 'NoneType' object is not subscriptable Возникает тогда, когда вы пытаетесь по индексу обратиться к None Объекту. когда что-то делается в личном чате, в общем проблемы нет
 
 class Bot:
     def __init__(self, group_id, token):
@@ -128,12 +126,12 @@ class Bot:
     def run(self):
         for event in self.bot_longpoller.listen():
             try:
-                self.on_event(event)
+                self.turning_event(event)
             except Exception as exc:
-                log.exception(f'Что-то пошло не так {exc}')
-                print(f'Что-то пошло не так {exc}')
+                log.exception(f'Ошибка {exc} в функции обработки события {event}')
+                print(f'Ошибка в функции обработки события {exc}')
 
-    def on_event(self, event):
+    def turning_event(self, event):
         '''
         event = object VkBotMessageEvent class
 
@@ -144,23 +142,22 @@ class Bot:
         event.from_chat = True - сообщение из чата болталки  event.chat_id = 1
         event.group_id = 207692611 при этом одинаковый
         '''
-        log.debug(f"{event.message['from_id']},self.array_users.keys()= {self.array_users.keys()}")
+        if event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_REPLY:  #TODO проверить обработку когда юзер просто отвечает боту
+            return
+        elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_TYPING_STATE:
+            return
+
         if event.message['from_id'] not in self.array_users.keys():  # проверка есть ли такой пользователь в списке общающихся
             self.create_user(event)    #если нет, создаем пользователя, а далее как обычно
                                        # на этом этапе у нас обязательно есть уже такой пользователь.
 
         if event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_NEW:
-            answer = self.message_new(event)  # вызываем функцию обработки
-            if answer:  # False - возвращается, когда бот внутри уже сам всё сделал. В основном касается команд.
-                self.log_and_send_user(event=event, answer=answer)
-        elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_TYPING_STATE:
-            return
-        elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_REPLY:  #TODO проверить обработку когда юзер просто отвечает боту
-            return
+            if answer := self.treatment_new_message(event):  # вызываем функцию обработки
+                self.log_and_send_user(event=event, answer=answer) # False - возвращается, когда бот внутри уже сам всё сделал. В основном касается команд.
         else:
             log.info(f'{event.type} ещё не реализовано!')
 
-    def message_new(self, event):
+    def treatment_new_message(self, event):
         '''Формирование ответа на новое входящее сообщение'''
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
         if self.array_users_in_scenario[event.message['from_id']] != None:  # Значит игрок в каком-то сценарии
