@@ -27,7 +27,7 @@ class GameTowns:
         self.count_wrong_answers = 0
         url = 'https://vk.com/id' + str(id)
         user = NameParser(url)
-        self.name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
+        self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
 
     def create_list_towns(self):
         with open('resources/towns/cities.json', 'r', encoding='utf-8') as file:  # основной список городов 10 тыс

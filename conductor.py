@@ -40,6 +40,7 @@ from vk_api.bot_longpoll import VkBotLongPoll
 import sorter, filler_tickets, game_towns
 from parser_name_from_vk import NameParser
 from game_towns import GameTowns
+from sea_battle import SeaBattle
 import my_logger
 from my_logger import log
 try:
@@ -51,6 +52,7 @@ except ImportError:
 log.setLevel(logging.DEBUG)
 
 class Bot:
+
     def __init__(self, group_id, token):
         self.dict = {}
         self.group_id = group_id
@@ -65,6 +67,9 @@ class Bot:
         self.upload = vk_api.VkUpload(vk=self.vk)
         self.array_users = {1:'2'}  #словарь, где по id: int юзера хранится лог {123456:[[time,obj,txt],[time,obj,txt]]} Непустой, чтобы не было ошибки итеракции по нему при опросе
         self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится name: str сценария
+        self.GAMES = {GameTowns: self.game_towns, SeaBattle:self.game_sea_battle}  # словарь классов игр и соответствующих функций
+        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой']}  # словарь классов игр и ключевых слов
+
 
     def create_dict_bad_words(self):
         '''Делает словарь плохих слов из словарных файлов в dict_bad_words'''
@@ -137,6 +142,7 @@ class Bot:
 
         VkBotEventType.GROUP_JOIN ещё не реализовано!
         VkBotEventType.MESSAGE_ALLOW ещё не реализовано!
+        2022-01-05 18:42:01,713 - INFO - VkBotEventType.WALL_POST_NEW ещё не реализовано!
         Что-то пошло не так [901] Can't send messages for users without permission
         event.from_user = True - сообщение от юзера   и event.chat_id = None
         event.from_chat = True - сообщение из чата болталки  event.chat_id = 1
@@ -146,44 +152,27 @@ class Bot:
             return
         elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_TYPING_STATE:
             return
+        elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_EDIT:
+            return
 
-        if event.message['from_id'] not in self.array_users.keys():  # проверка есть ли такой пользователь в списке общающихся
-            self.create_user(event)    #если нет, создаем пользователя, а далее как обычно
-                                       # на этом этапе у нас обязательно есть уже такой пользователь.
+        if event.message:  # Для нетекстовых событий это обычно None, костыль от ошибки извлечения из None
+            if event.message['from_id'] not in self.array_users.keys():  # проверка есть ли такой пользователь в списке общающихся
+                self.create_user(event)    #если нет, создаем пользователя, а далее как обычно
+                                           # на этом этапе у нас обязательно есть уже такой пользователь.
 
         if event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_NEW:
-            if answer := self.treatment_new_message(event):  # вызываем функцию обработки
-                self.log_and_send_user(event=event, answer=answer) # False - возвращается, когда бот внутри уже сам всё сделал. В основном касается команд.
+            if answer := self.treatment_new_message(event):  # False - возвращается, когда бот внутри уже сам всё сделал. В основном касается команд.
+                self.log_and_send_user(event=event, answer=answer)  # если это была не команда, логируем общение
         else:
             log.info(f'{event.type} ещё не реализовано!')
 
     def treatment_new_message(self, event):
         '''Формирование ответа на новое входящее сообщение'''
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
-        if self.array_users_in_scenario[event.message['from_id']] != None:  # Значит игрок в каком-то сценарии
-            name = ''
-            if self.array_users_in_scenario[event.message['from_id']].__class__ == GameTowns:   # игра в города
-                town = event.message['text']
-                game = self.array_users_in_scenario[event.message['from_id']]  #извлекает экземпляр из словаря
-                answer = game.game(town)  # посылает город игрока в экземпляр и получает ответ
-                log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
-                if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
-                    name = game.name + ': '
-                if 'Горе мне' in answer or 'похоже я выиграл!' in answer:  #выход из игры
-                    filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
-                    if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
-                        os.remove(filename)
-                    self.array_users_in_scenario[event.message['from_id']] = None
-                elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-                    filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
-                    user_instance = self.array_users_in_scenario[event.message['from_id']]
-                    with open(filename, 'wb') as file:
-                        pickle.dump(user_instance, file)
-                    self.array_users_in_scenario[event.message['from_id']] = None  # стираем из памяти
-            else:
-                answer = 'Не знаю, во что играешь ты, но я такой игры не знаю'
-
-            return name + answer
+        if scenario := self.array_users_in_scenario[event.message['from_id']]: # Значит игрок в каком-то сценарии
+            run = self.GAMES[scenario.__class__]
+            answer = run(event)
+            return answer
 
         # 2. Проверка на мат
         answer = self.check_bad_words(event)
@@ -252,11 +241,8 @@ class Bot:
                     answer = random.choice(intent['answer'])
                     break
                 else:                                          #run scenario
-                    if intent['scenario'] == 'TOWNS':
-                        answer = self.start_game_towns(message)           # начать игру в города
-                    else:
-                        answer = 'Таких игр пока нет'
-                    return answer
+                    answer = self.start_game(message)
+                    break
         else:  # значит ничего не совпало
             answer = random.choice(settings.DEFAULT_ANSWERS)
         return answer
@@ -296,19 +282,79 @@ class Bot:
         attachment = f'photo{owner_id}_{photo_id}_{access_key}'
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], attachment=attachment)
 
-    def start_game_towns(self, message):
+    def start_game(self, message):
         '''функция запуска игры в города. Образуем экземпляр соответствующего класса и пихаем его в массив играющих'''
-        filename = 'saved_games/towns/Saved_' + str(message['from_id']) + '.svg'
+        user_id = message['from_id']
+        text = message['text'].lower()
+        words = text.split(' ')
+        # теперь надо определить в какую игру
+        founded_klass = None
+        for klass, names in self.names_games.items():
+            if any([_ in text for _ in names]):
+                founded_klass = klass
+        if not founded_klass:
+            return 'Я не знаю такой игры'
+        klass = founded_klass
+        filename = 'saved_games/Saved_' + klass.__qualname__ + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
         if os.path.exists(filename):  # значит такая игра была сохранена
-            with open(filename, 'rb') as file:
-                user_instance = pickle.load(file)
-            self.array_users_in_scenario[message['from_id']] = user_instance
-            last_town = user_instance.list_choosed_towns[-1]
-            reply = f'Продолжаем! Последний названный город - {last_town}. Твой ход.'
-            return reply
-        self.array_users_in_scenario[message['from_id']] = GameTowns(message['from_id'])
-        reply = 'Добро пожаловать в игру "Города", ты начинаешь!'
+            if klass == GameTowns:  # пока сохранять умеем только города
+                with open(filename, 'rb') as file:
+                    user_instance = pickle.load(file)
+                self.array_users_in_scenario[user_id] = user_instance
+                last_town = user_instance.list_choosed_towns[-1]
+                reply = f'Продолжаем! Последний названный город - {last_town}. Твой ход.'
+                return reply
+        self.array_users_in_scenario[user_id] = klass(user_id)
+        if klass == GameTowns:
+            reply = 'Добро пожаловать в игру "Города", ты начинаешь!'
+        else:
+            reply = 'Добро пожаловать в игру "Морской бой", ты начинаешь!'
         return reply
+
+    def game_towns(self, event):
+        '''Обработка игры в города'''
+
+        name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
+        town = event.message['text']
+        game = self.array_users_in_scenario[event.message['from_id']]  # извлекает экземпляр из словаря
+        answer = game.game(town)  # посылает город игрока в экземпляр и получает ответ
+        log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
+        if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
+            name_of_user = game.user_name + ': '
+        if 'Горе мне' in answer or 'похоже я выиграл!' in answer:  # выход из игры
+            filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
+            if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
+                os.remove(filename)
+            self.array_users_in_scenario[event.message['from_id']] = None
+        elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
+            filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
+            user_instance = self.array_users_in_scenario[event.message['from_id']]
+            with open(filename, 'wb') as file:
+                pickle.dump(user_instance, file)
+            self.array_users_in_scenario[event.message['from_id']] = None  # стираем из памяти
+        return name_of_user + answer
+
+    def game_sea_battle(self, event):
+        '''Обработка игры в Морской бой'''
+
+        name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
+        turn = event.message['text']
+        game = self.array_users_in_scenario[event.message['from_id']]  # извлекает экземпляр из словаря
+        answer = game.users_message(turn)  # посылает ход игрока в экземпляр и получает ответ
+        if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
+            name_of_user = game.user_name + ': '
+        if game.situation == 'end the game':  # выход из игры
+            # filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
+            # if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
+            #     os.remove(filename)
+            self.array_users_in_scenario[event.message['from_id']] = None
+        # elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
+        #     filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
+        #     user_instance = self.array_users_in_scenario[event.message['from_id']]
+        #     with open(filename, 'wb') as file:
+        #         pickle.dump(user_instance, file)
+        #     self.array_users_in_scenario[event.message['from_id']] = None  # стираем из памяти
+        return name_of_user + answer
 
 
 if __name__ == '__main__':
