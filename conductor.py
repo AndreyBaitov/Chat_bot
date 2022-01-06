@@ -308,7 +308,7 @@ class Bot:
         if klass == GameTowns:
             reply = 'Добро пожаловать в игру "Города", ты начинаешь!'
         else:
-            reply = 'Добро пожаловать в игру "Морской бой", ты начинаешь!'
+            reply = 'Ну давай!'
         return reply
 
     def game_towns(self, event):
@@ -316,22 +316,23 @@ class Bot:
 
         name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
         town = event.message['text']
-        game = self.array_users_in_scenario[event.message['from_id']]  # извлекает экземпляр из словаря
+        user_id = event.message['from_id']
+        game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
         answer = game.game(town)  # посылает город игрока в экземпляр и получает ответ
         log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
         if 'Горе мне' in answer or 'похоже я выиграл!' in answer:  # выход из игры
-            filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
+            filename = 'saved_games/Saved_' + 'GameTowns' + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
             if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
                 os.remove(filename)
-            self.array_users_in_scenario[event.message['from_id']] = None
+            self.array_users_in_scenario[user_id] = None
         elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-            filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
-            user_instance = self.array_users_in_scenario[event.message['from_id']]
+            filename = 'saved_games/Saved_' + 'GameTowns' + str(user_id) + '.svg'
+            user_instance = self.array_users_in_scenario[user_id]
             with open(filename, 'wb') as file:
                 pickle.dump(user_instance, file)
-            self.array_users_in_scenario[event.message['from_id']] = None  # стираем из памяти
+            self.array_users_in_scenario[user_id] = None  # стираем из памяти
         return name_of_user + answer
 
     def game_sea_battle(self, event):

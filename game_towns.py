@@ -135,8 +135,6 @@ class GameTowns:
 if __name__ == '__main__':
     id = 395305264
     game = GameTowns(id)  #395305264 - мой
-    if game.__class__ == GameTowns:
-        print('yeap')
     print('Добро пожаловать в игру Города, назови свой первый город')
     while True:
         town = input('Твой ответ:')
