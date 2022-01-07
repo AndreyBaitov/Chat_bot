@@ -18,7 +18,8 @@ class NameParser:
         assumed_name1 = self.checking(list_assumed_name1)
         assumed_name2 = self.checking(list_assumed_name2)
         assumed_name1 = re.findall(r'(\w+\s\w+) \| ВКонтакте', assumed_name1)
-        assumed_name1 = assumed_name1[0]
+        if assumed_name1:  # костыль от пустого списка
+            assumed_name1 = assumed_name1[0]
         if assumed_name1 == assumed_name2 :  # если оба имени совпадают
             assumed_name = assumed_name1
         else:
@@ -32,21 +33,6 @@ class NameParser:
         except IndexError:
             assumed_name = ''
         return assumed_name
-
-    # удаленная функция поиска в этом окружении, не смог понять как в bs4 это сделать
-    # def search_on_meta_name(self, line):
-    #     if '<meta name="description" content="' in line:
-    #         line = line.replace('<meta name="description" content="', '')
-    #         for char in line:
-    #             if char == '.' or char == ',':
-    #                 break
-    #             self.assumed_name1 = self.assumed_name1 + char
-    #     for char in self.assumed_name1:
-    #         if char == ' ':
-    #             self.assumed_name1 = self.assumed_name1[1:]
-    #         else:
-    #             break
-    #     return
 
     def get_html(self, url):
         try:
