@@ -57,143 +57,13 @@ class SeaBattle:
         self.status_users_ship = {'hits':0, 'place': []}  #  словарь для текущей жертвы бота, чтобы потом заменить раненых на убитых, а вокруг корабля поставить знаки неперспективно
         self.lazy_user_board = {}  # по умолчанию пустой словарь, но для ленивых игроков, бот может сам расставлять их корабли и показывать его
         self.enemy_board = {}  #предполагаемое для бота поле игрока
-        self.situation = 'start the game'
+        self.stage = self.start_game
         self.show_every_turn = False  # переменная показывания поля каждый ход
         self.bot_board = {}
         self.cheat_list = []
         url = 'https://vk.com/id' + str(id)
         user = NameParser(url)
         self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
-
-    def start_game(self, message):
-        '''Опрашивает игрока и создает всё необходимое для игры'''
-
-        if any([_ in message for _ in ['выход','выйти','конец','надоел']]):  # проверка на выход
-            answer = 'Игра окончилась и не начавшись, пока!'
-            self.situation = 'end the game'
-            return answer
-
-        if self.situation == 'start the game':  # самое самое начало игры, надо вывести правила
-            self.situation = 'start the game. Step 1'
-            return 'Добро пожаловать в игру "Морской бой"!\nВыбери размер поля (ширину) в клетках от 2 до 32.'
-
-        elif self.situation == 'start the game. Step 1':  # выбор размера поля
-            if not message.isdigit():  #Если это не цифра
-                return 'Число, пожалуйста!'
-            if int(message) < 2 or int(message) > 32 :
-                return 'Выбери размер поля (ширину) в клетках от 2 до 32.'
-            self.situation = 'start the game. Step 2'
-            width = int(message)
-            global WIDTH
-            global DEEP
-            DEEP = width
-            WIDTH = chr(1071+width)
-            line1 = f'Отлично! у нас будет поле: от "а" до "{WIDTH}" и от "1" до "{DEEP}":\n'
-            line2 = 'Теперь выбери какие корабли будут и сколько штук.\n'
-            line3 = ' Сначала количество, затем пробел, затем сколько палуб, и всё это через запятую.\n'
-            line4 = 'Например, классический набор: 1 4, 2 3, 3 2, 4 1. Или набери "классика"'
-            return line1+line2+line3+line4
-
-        elif self.situation == 'start the game. Step 2':  # выбор количества кораблей
-            if any([_ in message for _ in ['классика','класика', 'классический']]):
-                message = '1 4, 2 3, 3 2, 4 1'
-            array = message.split(',')  # список строк ['1 4', ' 2 3', ' 3 2', ' 4 1.']
-            ships = []
-            try:
-                for line in array:
-                    amount, type_ship = re.findall('(\d+)\s(\d+)', line)[0]
-                    amount = int(amount)
-                    type_ship = int(type_ship)
-                    ships.append((amount,type_ship))  # должен получаться [(1,4), (2,3)]
-                    if amount < 1 or type_ship < 1:  # защита от кораблей 0 количества и 0 уровня
-                        raise IndexError
-            except IndexError:
-                return 'Уточни список, я тебя не понял. Формат "1 4, 2 3, 3 2, 4 1"'
-            ships_in_game = []
-            for amount, type_ship in ships:
-                for i in range(amount):
-                    ships_in_game.append(type_ship)  # должен собираться список [4, 4, 1, 1, 2, 3]
-            line_ships, garbage = self.count_result_game(ships_in_game, {})  # составляю список кораблей
-            line_ships = line_ships[10:] + '\n'  # отрезаем ненужную тут фразу
-            if max(ships_in_game) > DEEP:  # защита от слишком длинных кораблей
-                return f'{max(ships_in_game)}-палубник Не влезет на поле {DEEP}X{DEEP}! Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
-            line_reference = ''
-            for i in range(max(ships_in_game)):
-                if i+1 in ships_in_game:
-                    line_reference += f'{self.names_ships[i + 1]} это {i + 1}-палубник\n'
-            self.ships = ships_in_game [:] #
-            self.remaining_users_ships = self.ships[:]  # список вражеских кораблей для определения конца игры
-            self.remaining_bots_ships = self.ships[:]  # отдельный список для оставшихся в живых кораблей
-            self.situation = 'start the game. Step 3'
-            return line_ships + line_reference + 'Всё верно?'
-
-        elif self.situation == 'start the game. Step 3':  # проверка правильности количества кораблей
-            if any([_ in message for _ in ['нет','не']]):
-                self.situation = 'start the game. Step 2'
-                return 'Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
-            elif any([_ in message for _ in ['да', 'ага']]):
-                self.situation = 'start the game. Step 4'
-                return 'Хочешь я нарисую поле за тебя и буду отслеживать свои попытки?'
-            else:
-                return 'Повтори, я тебя не понял'
-
-        elif self.situation == 'start the game. Step 4':  # генерация полей
-            answer = 'Выбери уровень сложности (1 - простой, 2 - сложный, 3 - невозможный)'
-            self.situation = 'start the game. Step 5'
-
-            if any([_ in message for _ in ['нет', 'не']]):  # пользователь сам рисует поле.
-                answer = 'Тогда расставляй корабли сам!\n' \
-                         'Нельзя, чтобы корабли соприкасались ни боками, ни, даже, уголками.\n' \
-                         'Как минимум одна клетка между ними должна быть обязательно.\n' \
-                         'К краям поля корабли прижимать можно.\n' \
-                         'Да, корабль - это клеточки идущие подряд, никаких изгибов не должно быть.\n' \
-                        'Выбери уровень сложности (1 - простой, 2 - сложный, 3 - невозможный)'
-
-            elif any([_ in message for _ in ['да', 'ага']]): # пять попыток сделать поле игроку
-                for _ in range(5):
-                    try:
-                        self.lazy_user_board, self.status_users_living_ships = self.create_board()
-                    except TimeoutError:
-                        continue
-                    else:
-                        break
-                if not self.lazy_user_board:  # если так и не удалось сгенерировать поле
-                    self.situation = 'start the game. Step 2'
-                    return 'Мне не удалось расставить такое количество кораблей, попробуй другой список судов. Формат "1 4, 2 3, 3 2, 4 1".'
-            else:
-                return 'Повтори, я тебя не понял.'
-
-            for number in range(1072, ord(WIDTH) + 1):  # генерация поля бота
-                self.enemy_board[chr(number)] = ['*' for _ in range(DEEP)]
-            for _ in range(5):  # пять попыток сделать поле боту
-                try:
-                    self.bot_board, self.status_bots_living_ships = self.create_board()
-                except TimeoutError:
-                    continue
-                else:
-                    break
-            if not self.bot_board:   # если так и не удалось сгенерировать поле
-                self.situation = 'start the game. Step 2'
-                return 'Мне не удалось расставить такое количество кораблей, попробуй другой список судов. Формат "1 4, 2 3, 3 2, 4 1".'
-
-            return answer
-
-        elif self.situation == 'start the game. Step 5':  # выбор уровня сложности
-            answer = random.choice(['Начинай!','Твой выстрел!', 'Твой ход', 'Пли!'])
-            if any([_ in message for _ in ['1', 'простой']]):  # базовый честный уровень сложности
-                self.level = None
-            elif any([_ in message for _ in ['2', 'сложный']]): # бот на удар в уже проверенную или бесполезную клетку отвечает мимо!
-                self.level = 2
-            elif any([_ in message for _ in ['3', 'невозможный']]): # бот читерит, выдерживая один 1-палубный корабль, невыставленным, чтобы выставить только в самом крайнем случае, в самое последнее, оставшееся место
-                self.level = 3
-                self.cheat_list = self.cheat_bot_board()
-                log.info(f'Cheat mode on. Potential places are {self.cheat_list}')
-            else:
-                return 'Не понял!'
-            self.situation = 'user must try to hit'
-            return answer
-
-        return 'Что-то непонятное, повтори!'
 
     def cheat_bot_board(self) -> list:
         '''Убирает с поля бота 1-палубный корабль, если таковой есть, оставляя его в списке кораблей, а затем составляет
@@ -418,22 +288,143 @@ class SeaBattle:
             transposed_board[number + 1] = tuple(collect) # храним с 1 ...
         return transposed_board
 
+    def start_game(self, message):
+        '''Начинает опрашивать игрока для настройки игры'''
+        # самое самое начало игры, надо вывести правила
+        self.stage = self.setup_game_step_1
+        return 'Добро пожаловать в игру "Морской бой"!\nВыбери размер поля (ширину) в клетках от 2 до 32.'
+
+    def setup_game_step_1(self, message):
+        '''Выбор размера поля'''
+        if not message.isdigit():  #Если это не цифра
+            return 'Число, пожалуйста!'
+        if int(message) < 2 or int(message) > 32 :
+            return 'Выбери размер поля (ширину) в клетках от 2 до 32.'
+        width = int(message)
+        global WIDTH
+        global DEEP
+        DEEP = width
+        WIDTH = chr(1071+width)
+        line1 = f'Отлично! у нас будет поле: от "а" до "{WIDTH}" и от "1" до "{DEEP}":\n'
+        line2 = 'Теперь выбери какие корабли будут и сколько штук.\n'
+        line3 = ' Сначала количество, затем пробел, затем сколько палуб, и всё это через запятую.\n'
+        line4 = 'Например, классический набор: 1 4, 2 3, 3 2, 4 1. Или набери "классика"'
+        self.stage = self.setup_game_step_2
+        return line1+line2+line3+line4
+
+    def setup_game_step_2(self, message):
+        '''Выбор количества кораблей'''
+        if any([_ in message for _ in ['классика','класика', 'классический']]):
+            message = '1 4, 2 3, 3 2, 4 1'
+        array = message.split(',')  # список строк ['1 4', ' 2 3', ' 3 2', ' 4 1.']
+        ships = []
+        try:
+            for line in array:
+                amount, type_ship = re.findall('(\d+)\s(\d+)', line)[0]
+                amount = int(amount)
+                type_ship = int(type_ship)
+                ships.append((amount,type_ship))  # должен получаться [(1,4), (2,3)]
+                if amount < 1 or type_ship < 1:  # защита от кораблей 0 количества и 0 уровня
+                    raise IndexError
+        except IndexError:
+            return 'Уточни список, я тебя не понял. Формат "1 4, 2 3, 3 2, 4 1"'
+        ships_in_game = []
+        for amount, type_ship in ships:
+            for i in range(amount):
+                ships_in_game.append(type_ship)  # должен собираться список [4, 4, 1, 1, 2, 3]
+        line_ships, garbage = self.count_result_game(ships_in_game, {})  # составляю список кораблей
+        line_ships = line_ships[10:] + '\n'  # отрезаем ненужную тут фразу
+        if max(ships_in_game) > DEEP:  # защита от слишком длинных кораблей
+            return f'{max(ships_in_game)}-палубник Не влезет на поле {DEEP}X{DEEP}! Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
+        line_reference = ''
+        for i in range(max(ships_in_game)):
+            if i+1 in ships_in_game:
+                line_reference += f'{self.names_ships[i + 1]} это {i + 1}-палубник\n'
+        self.ships = ships_in_game [:]              # список кораблей для данной игры
+        self.remaining_users_ships = self.ships[:]  # список вражеских кораблей для определения конца игры
+        self.remaining_bots_ships = self.ships[:]   # список своих оставшихся в живых кораблей
+
+        self.stage = self.setup_game_step_3
+        return line_ships + line_reference + 'Всё верно?'
+
+    def setup_game_step_3(self, message):
+        '''Уточнение  правильности количества кораблей'''
+        if any([_ in message for _ in ['нет','не']]):
+            self.stage = self.setup_game_step_2
+            return 'Уточни список. Формат "1 4, 2 3, 3 2, 4 1"'
+        elif any([_ in message for _ in ['да', 'ага']]):
+            self.stage = self.setup_game_step_4
+            return 'Хочешь я нарисую поле за тебя и буду отслеживать свои попытки?'
+        else:
+            return 'Повтори, я тебя не понял'
+
+    def setup_game_step_4(self, message):
+        '''Генерация полей и выбор уровня сложности'''
+
+        if any([_ in message for _ in ['нет', 'не']]):  # пользователь сам рисует поле.
+            answer = 'Тогда расставляй корабли сам!\n' \
+                     'Нельзя, чтобы корабли соприкасались ни боками, ни, даже, уголками.\n' \
+                     'Как минимум одна клетка между ними должна быть обязательно.\n' \
+                     'К краям поля корабли прижимать можно.\n' \
+                     'Да, корабль - это клеточки идущие подряд, никаких изгибов не должно быть.\n' \
+                    'Выбери уровень сложности (1 - простой, 2 - сложный, 3 - невозможный)'
+        elif any([_ in message for _ in ['да', 'ага']]): # пять попыток сделать поле игроку
+            for _ in range(5):
+                try:
+                    self.lazy_user_board, self.status_users_living_ships = self.create_board()
+                except TimeoutError:
+                    continue
+                else:
+                    break
+            if not self.lazy_user_board:  # если так и не удалось сгенерировать поле
+                self.stage = self.setup_game_step_2
+                return 'Мне не удалось расставить такое количество кораблей, попробуй другой список судов. Формат "1 4, 2 3, 3 2, 4 1".'
+        else:
+            return 'Повтори, я тебя не понял.'
+
+        # генерация поля бота
+        for number in range(1072, ord(WIDTH) + 1):
+            self.enemy_board[chr(number)] = ['*' for _ in range(DEEP)]
+        for _ in range(5):  # пять попыток сделать поле боту
+            try:
+                self.bot_board, self.status_bots_living_ships = self.create_board()
+            except TimeoutError:
+                continue
+            else:
+                break
+        if not self.bot_board:
+            self.stage = self.setup_game_step_2
+            return 'Мне не удалось расставить такое количество кораблей, попробуй другой список судов. Формат "1 4, 2 3, 3 2, 4 1".'
+
+        # все генерации полей прошли удачно
+        self.stage = self.setup_game_step_5
+        return 'Выбери уровень сложности (1 - простой, 2 - сложный, 3 - невозможный)'
+
+    def setup_game_step_5(self, message):
+        '''Выбор уровня сложности'''
+        answer = random.choice(['Начинай!','Твой выстрел!', 'Твой ход', 'Пли!'])
+        if any([_ in message for _ in ['1', 'простой']]):  # базовый честный уровень сложности
+            self.level = None
+        elif any([_ in message for _ in ['2', 'сложный']]): # бот на удар в уже проверенную или бесполезную клетку отвечает мимо! todo добавить в этот и следующий уровень сложности удары по "квадратам"
+            self.level = 2
+        elif any([_ in message for _ in ['3', 'невозможный']]): # бот читерит, выдерживая один 1-палубный корабль, невыставленным, чтобы выставить только в самом крайнем случае, в самое последнее, оставшееся место
+            self.level = 3
+            self.cheat_list = self.cheat_bot_board()  #бот убирает 1 корабль и готовит список потенциальных мест
+            log.info(f'Cheat mode on. Potential places are {self.cheat_list}')
+        else:
+            return 'Не понял!'
+        self.stage = #todo 'user must try to hit'
+        return answer
+
     def run(self, message: str):
         '''Сообщение от игрока, которое надо обработать в зависимости от текущей ситуации
            предположим мы будем хранить текущее состояние в отдельной переменной'''
         message = message.lower()
 
-        # Начало игры, отправляем в соответствующую фунцкцию
-        if 'start the game' in self.situation:
-            message = self.start_game(message)
-            return message
-
         # Обработка команд боту
-        answer = ''
-        situation = self.situation
         if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):
             answer = self.result_game()
-            self.situation = 'end the game'
+            self.stage = 'end the game'
             return answer
         elif any([_ in message for _ in ['сохрани']]):
             bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
@@ -452,23 +443,27 @@ class SeaBattle:
             user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
             return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}'
 
-        # Обработка хода игрока/бота в игре
+        answer = self.stage(message)
+        return answer
+
         adding = ''
-        if self.situation == "check user's board myself":  # Значит мы сами проверяем попали или мимо
+        if self.stage == "check user's board myself":  # Значит мы сами проверяем попали или мимо  todo это пока пропускаю, переделаю простой вариант без поля пользователя
             message = self.check_lazy_users_board()  # adding - Строка результата нашего действия
             adding = message
-            if self.situation == 'end the game':
+            if self.stage == 'end the game':
                 return ''
             else:
-                self.situation = 'wait answer from user'  # чтобы ниже обработался подменённый ответ
-        if self.situation == 'user must try to hit':  # Значит мы ждем, что игрок будет пытаться стрелять
+                self.stage = 'wait answer from user'  # чтобы ниже обработался подменённый ответ
+
+
+        if self.stage == 'user must try to hit':  # Значит мы ждем, что игрок будет пытаться стрелять
             answer, situation = self.check_hit(message)
-        elif self.situation == 'wait answer from user':  # Значит мы ждем ответа попал или не попал
+        elif self.stage == 'wait answer from user':  # Значит мы ждем ответа попал или не попал
             answer, situation = self.got_reply_about_our_turn(message)
             answer = adding + answer  # При обычном ничего не добавляется, если мы подменяли юзера, то добавится резалт
         if situation == 'wait answer from user' and self.lazy_user_board:  # если мы ждём ответа, а у нас есть его поле
             situation = "check user's board myself"
-        self.situation = situation
+        self.stage = situation
         if self.show_every_turn:  # показывать каждый ход
             self.show_users_boards()
         log.debug(f'Список бота = {self.remaining_bots_ships}')
@@ -488,7 +483,7 @@ class SeaBattle:
             answer = 'Ч**т! Мимо!'
             self.lazy_user_board[x][y - 1] = MISSED
         elif not self.remaining_users_ships: #  проверка в конце игры
-            self.situation = 'end the game'
+            self.stage = 'end the game'
             return ''
         else:
             raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
@@ -548,7 +543,7 @@ class SeaBattle:
 
         if not (turn := self.check_phrase_about_try(turn)):  # проверяет валидн1ость хода игрока
             answer = 'Не понял'
-            situation = self.situation  # ждём того же самого
+            situation = self.stage  # ждём того же самого
         else:                           #Теперь проверяем куда ударил игрок
             x, y = self.refactor(turn)
             if self.bot_board[x][y - 1] == EMPTY:      # промах
@@ -812,13 +807,13 @@ if __name__ == '__main__':
     print(answer)
     while True:
         message = ''
-        if game.situation == 'user must try to hit':
+        if game.stage == 'user must try to hit':
             message = input('Твой ход: ')
-        elif game.situation == 'wait answer from user':
+        elif game.stage == 'wait answer from user':
             message = input('Твой ответ: ')
-        elif 'start the game' in game.situation:
+        elif 'start the game' in game.stage:
             message = input('Твой выбор: ')
-        elif game.situation == 'end the game':
+        elif game.stage == 'end the game':
             break
         answer = game.run(message)
         print(answer)

@@ -70,7 +70,7 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board  #подменяем поле
         game.status_bots_living_ships = status_living_ships
         game.bot_turn = send_mock
-        game.situation = 'user must try to hit'
+        game.stage = 'user must try to hit'
         game.remaining_bots_ships = [4,3,3,2,2,2,1,1,1,1]
         self.assertEqual(game.check_hit(turn='а 1'),('Мимо! Мой ход: а 1','wait answer from user'))
         self.assertEqual(game.check_hit(turn='а2'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
@@ -398,7 +398,7 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.status_bots_living_ships = status_living_ships
         # проверка убийства 1 палубного корабля, проверка удаления его из списка и отметка в поле
-        game.situation = 'user must try to hit'
+        game.stage = 'user must try to hit'
         game.remaining_bots_ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
         self.assertEqual(game.check_killing_ship(place='з 2', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Убил!', 'user must try to hit'))
         self.assertFalse(10 in game.status_bots_living_ships)
@@ -531,7 +531,7 @@ class TestSeaBattle(unittest.TestCase):
         game.previously_bot_turn = ('а', 10)
         send_mock = Mock(return_value='')
         game.bot_turn = send_mock  # чтобы не терять один вариант из перспективного хода
-        game.situation = 'user must try to hit'
+        game.stage = 'user must try to hit'
         game.remaining_users_ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
         self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
         self.assertEqual(game.enemy_board['а'][9], WOUND)
