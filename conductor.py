@@ -41,6 +41,7 @@ import sorter, filler_tickets, game_towns
 from parser_name_from_vk import NameParser
 from game_towns import GameTowns
 from sea_battle import SeaBattle
+from bulls_and_cows import BullsCows
 import my_logger
 from my_logger import log
 try:
@@ -67,8 +68,8 @@ class Bot:
         self.upload = vk_api.VkUpload(vk=self.vk)
         self.array_users = {1:'2'}  #словарь, где по id: int юзера хранится лог {123456:[[time,obj,txt],[time,obj,txt]]} Непустой, чтобы не было ошибки итеракции по нему при опросе
         self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится name: str сценария
-        self.GAMES = {GameTowns: self.game_towns, SeaBattle:self.game_sea_battle}  # словарь классов игр и соответствующих функций
-        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой']}  # словарь классов игр и ключевых слов
+        self.GAMES = {GameTowns: self.game_towns, SeaBattle:self.game_sea_battle, BullsCows:self.game_bulls_cows}  # словарь классов игр и соответствующих функций
+        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой'],BullsCows:['быки','коровы']}  # словарь классов игр и ключевых слов
 
 
     def create_dict_bad_words(self):
@@ -199,7 +200,7 @@ class Bot:
         if any([_ in event.message['text'].lower() for _ in ['разозлись','злюка','злобный','бяка']]):
             self.rage[event.message['from_id']] = 100
             self.explosion_from_rage(event)
-        elif any([_ in event.message['text'].lower() for _ in ['уходи','вали','канай','сдрисни']]):
+        elif any([_ in event.message['text'].lower() for _ in ['уходи','вали','канай','сдрисни','уйди', 'выйди']]):
             answer = random.choice(['Ну и ладно!', 'Пока!', 'Не очень то и хотелось!', 'Чава, какава!', 'Адьос!', 'Ауфвидерзеен!'])
             self.log_and_send_user(event=event, answer=answer)
             exit()
@@ -284,6 +285,7 @@ class Bot:
 
     def start_game(self, message):
         '''функция запуска игры в города. Образуем экземпляр соответствующего класса и пихаем его в массив играющих'''
+        #todo сделать функцию универсальной
         user_id = message['from_id']
         text = message['text'].lower()
         words = text.split(' ')
@@ -295,21 +297,32 @@ class Bot:
         if not founded_klass:
             return 'Я не знаю такой игры'
         klass = founded_klass
+        if answer := self.load_games(klass, user_id):
+            return answer
+
+        user_instance = klass(user_id)  # иначе создаем экземпляр и начинаем игру
+        self.array_users_in_scenario[user_id] = user_instance
+        answer = user_instance.run(' ')
+        return answer
+
+    def load_games(self, klass, user_id: int):
+        '''Проверяет наличие файла, если нет возвращает False, если есть загружает его в массив игр игроков'''
         filename = 'saved_games/Saved_' + klass.__qualname__ + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
-        if os.path.exists(filename):  # значит такая игра была сохранена
-            if klass == GameTowns:  # пока сохранять умеем только города
-                with open(filename, 'rb') as file:
-                    user_instance = pickle.load(file)
-                self.array_users_in_scenario[user_id] = user_instance
-                last_town = user_instance.list_choosed_towns[-1]
-                reply = f'Продолжаем! Последний названный город - {last_town}. Твой ход.'
-                return reply
-        self.array_users_in_scenario[user_id] = klass(user_id)
-        if klass == GameTowns:
-            reply = 'Добро пожаловать в игру "Города", ты начинаешь!'
-        else:
-            reply = 'Ну давай!'
-        return reply
+        if not os.path.exists(filename):
+            return False
+        with open(filename, 'rb') as file:
+            user_instance = pickle.load(file)
+        self.array_users_in_scenario[user_id] = user_instance
+        answer = user_instance.message_after_load
+        # garbage = user_instance.run(' ')
+        return answer
+
+    def save_games(self, user_id: int, user_instance):
+        '''Сохраняет экземпляр игры в определенной папке с названием класса и id пользователя'''
+        filename = 'saved_games/Saved_' + user_instance.__class__.__qualname__ + str(user_id) + '.svg'
+        with open(filename, 'wb') as file:
+            pickle.dump(user_instance, file)
+        self.array_users_in_scenario[user_id] = None  # стираем из памяти
 
     def game_towns(self, event):
         '''Обработка игры в города'''
@@ -318,7 +331,7 @@ class Bot:
         town = event.message['text']
         user_id = event.message['from_id']
         game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
-        answer = game.game(town)  # посылает город игрока в экземпляр и получает ответ
+        answer = game.run(town)  # посылает город игрока в экземпляр и получает ответ
         log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
@@ -328,35 +341,40 @@ class Bot:
                 os.remove(filename)
             self.array_users_in_scenario[user_id] = None
         elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-            filename = 'saved_games/Saved_' + 'GameTowns' + str(user_id) + '.svg'
             user_instance = self.array_users_in_scenario[user_id]
-            with open(filename, 'wb') as file:
-                pickle.dump(user_instance, file)
-            self.array_users_in_scenario[user_id] = None  # стираем из памяти
+            last_town = user_instance.list_choosed_towns[-1]
+            user_instance.message_after_load = f'Продолжаем! Последний названный город - {last_town}. Твой ход.'
+            # user_instance.message_after_load = answer.replace('Сохраняю игру', 'Твой ход') надо заменить на это
+            self.save_games(user_id,user_instance)
         return name_of_user + answer
 
     def game_sea_battle(self, event):
         '''Обработка игры в Морской бой'''
 
+        user_id = event.message['from_id']
         name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
         turn = event.message['text']
-        game = self.array_users_in_scenario[event.message['from_id']]  # извлекает экземпляр из словаря
-        answer = game.users_message(turn)  # посылает ход игрока в экземпляр и получает ответ
+        game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
+        answer = game.run(turn)  # посылает ход игрока в экземпляр и получает ответ
+        while game.situation == "check user's board myself":  # ситуация, где боту надо накопить ответы
+            answer += '\n' + game.run('')
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
         if game.situation == 'end the game':  # выход из игры
-            # filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
-            # if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
-            #     os.remove(filename)
-            self.array_users_in_scenario[event.message['from_id']] = None
-        # elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-        #     filename = 'saved_games/towns/Saved_' + str(event.message['from_id']) + '.svg'
-        #     user_instance = self.array_users_in_scenario[event.message['from_id']]
-        #     with open(filename, 'wb') as file:
-        #         pickle.dump(user_instance, file)
-        #     self.array_users_in_scenario[event.message['from_id']] = None  # стираем из памяти
+            filename = 'saved_games/Saved_' + 'SeaBattle' + str(event.message['from_id']) + '.svg'
+            if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
+                os.remove(filename)
+            self.array_users_in_scenario[user_id] = None
+        elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
+            user_instance = self.array_users_in_scenario[user_id]
+            user_instance.message_after_load = answer.replace('Сохраняю игру','Твой ход')
+            self.save_games(user_id,user_instance)
         return name_of_user + answer
 
+    def game_bulls_cows(self,event):
+        '''Игра быки и коровы'''
+        #todo
+        pass
 
 if __name__ == '__main__':
     bot = Bot(group_id=GROUP_ID, token=TOKEN)

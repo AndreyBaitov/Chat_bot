@@ -47,7 +47,7 @@ class GameTowns:
         list_towns = list(set_towns)  # превращаем в список
         return list_towns
 
-    def game(self, town: str ='Москва'):
+    def run(self, town: str = 'Москва'):
         '''Непосредственно проверка города и выдача ответа в виде строки'''
         self.time = time.time()  #обновляем переменную времени общения вне зависимости от ответа. Скуку проверяет бот
         town = town.lower()   #все в строчный регистр, чтобы упростить проверку команд
@@ -55,7 +55,7 @@ class GameTowns:
             ending = self.choose_end_char_number(len(self.list_choosed_towns))
             reply = f'Сохраняю игру, чтобы продолжить, начни игру заново. Мы уже назвали {len(self.list_choosed_towns)} город{ending}'
             return reply                                    # бот должен сохранить игру по ключу сохраняю игру!
-        if any([_ in town for _ in ['надоело','устал','выход','выйти']]):  #пользователь хочет закончить
+        if any([_ in town for _ in ['надоело','устал','выход','выйти','удали']]):  #пользователь хочет закончить
             ending = self.choose_end_char_number(len(self.list_choosed_towns))
             reply = f'Что ж, похоже я выиграл! Вместе мы назвали {len(self.list_choosed_towns)} город{ending}'  # конец игры
             return reply                                    # бот должен закончить игру по ключу похоже я выиграл!...
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     print('Добро пожаловать в игру Города, назови свой первый город')
     while True:
         town = input('Твой ответ:')
-        reply = game.game(town)
+        reply = game.run(town)
         if 'Горе мне' in reply or 'похоже я выиграл!' in reply:
             print(reply)
             break  #игра окончена, бот сдался

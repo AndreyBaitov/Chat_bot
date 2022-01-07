@@ -12,6 +12,7 @@ class BullsCows:
         self.stage = self.start_game
 
     def check_input(self,message) -> str:
+        '''Проверка сообщения игрока на валидность: цифры и количество символов'''
         try:
             number = int(message)
             if len(message) != len(self.cypher):
@@ -21,7 +22,7 @@ class BullsCows:
             return False
 
     def run(self, message):
-        '''Обработка сообщений пользователя'''
+        '''Обработка сообщения пользователя: на выход или согласно этапу(в переменной хранится функция)'''
         if any([_ in message for _ in ['не', 'нет', 'выход', 'выйти']]):
             answer = 'Пока, пока, ' + random.choice(
                 ['хакер', 'ковбой', 'ха**р', 'ков**й', 'математик', 'медвежатник']) + '!'
@@ -39,7 +40,7 @@ class BullsCows:
         return greetings + rules + question
 
     def generation_number(self, amount: str) -> str:
-        '''Генерируем загаданное число, возвращает либо False, либо строку'''
+        '''Генерация загаданного числа и обработка несоотвествующих выборов'''
         try:
             amount = int(amount)
         except Exception:
@@ -56,6 +57,7 @@ class BullsCows:
         return '* '* len(cypher)
 
     def check_trial(self, message: str) -> str:
+        '''Обработка ответа игрока в игре'''
         if message == self.cypher:  # игрок угадал
             self.stage = self.end_game
             return 'Угадал!\nХочешь ещё?'
@@ -72,8 +74,8 @@ class BullsCows:
         return answer
 
     def end_game(self, message: str) -> str:
-        '''Обработать выход или повторную игру'''
-        if any([_ in message for _ in ['да','ага','ещё','угу']]):
+        '''Выбор игрока выйти или повторить'''
+        if any([_ in message for _ in ['да','ага','ещё','угу','повтор']]):
             answer = self.start_game('')
         elif any([_ in message for _ in ['не', 'нет', 'выход', 'выйти']]):
             answer = 'Пока, пока, ' + random.choice(['хакер','ковбой','ха**р','ков**й','математик','медвежатник'])+ '!'

@@ -418,7 +418,7 @@ class SeaBattle:
             transposed_board[number + 1] = tuple(collect) # храним с 1 ...
         return transposed_board
 
-    def users_message(self, message: str):
+    def run(self, message: str):
         '''Сообщение от игрока, которое надо обработать в зависимости от текущей ситуации
            предположим мы будем хранить текущее состояние в отдельной переменной'''
         message = message.lower()
@@ -433,9 +433,12 @@ class SeaBattle:
         situation = self.situation
         if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):
             answer = self.result_game()
-            situation = 'end the game'
-            self.situation = situation
+            self.situation = 'end the game'
             return answer
+        elif any([_ in message for _ in ['сохрани']]):
+            bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
+            user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
+            return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}.\nСохраняю игру!'
         elif any([_ in message for _ in ['покажи', 'показать', 'поле']]):  # проверка показ полей
             self.show_users_boards()
             return 'Океюшки'
@@ -802,7 +805,7 @@ class SeaBattle:
 
 if __name__ == '__main__':
     game = SeaBattle(375353535)
-    answer = game.users_message('')
+    answer = game.run('')
     print(answer)
     while True:
         message = ''
@@ -814,7 +817,7 @@ if __name__ == '__main__':
             message = input('Твой выбор: ')
         elif game.situation == 'end the game':
             break
-        answer = game.users_message(message)
+        answer = game.run(message)
         print(answer)
 
 
