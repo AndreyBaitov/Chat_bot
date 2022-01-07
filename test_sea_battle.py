@@ -72,23 +72,23 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_turn = send_mock
         game.stage = 'user must try to hit'
         game.remaining_bots_ships = [4,3,3,2,2,2,1,1,1,1]
-        self.assertEqual(game.check_hit(turn='а 1'),('Мимо! Мой ход: а 1','wait answer from user'))
-        self.assertEqual(game.check_hit(turn='а2'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit(turn='А 3'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit(turn='А4'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit(turn='а11'), ('Не понял', 'user must try to hit'))
-        self.assertEqual(game.check_hit(turn='а 11'), ('Не понял', 'user must try to hit'))
-        self.assertEqual(game.check_hit(turn='з4'), ('Убил!', 'user must try to hit'))
-        self.assertEqual(game.check_hit(turn='г6'), ('Ранил!', 'user must try to hit'))
-        self.assertEqual(game.check_hit(turn='е5'), ('Ранил!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='а 1'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='а2'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='А 3'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='А4'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='а11'), ('Не понял', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='а 11'), ('Не понял', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='з4'), ('Убил!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='г6'), ('Ранил!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='е5'), ('Ранил!', 'user must try to hit'))
         game.bot_board['й'][0] = '⊡'  # ⊡ Раненый корабль
-        self.assertEqual(game.check_hit(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
         game.bot_board['й'][0] = '⛝'  # ⛝ Убитый корабль
-        self.assertEqual(game.check_hit(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
         game.bot_board['й'][0] = 'ͦ'  # ͦ Промах
-        self.assertEqual(game.check_hit(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
         game.bot_board['й'][0] = '≋'  # '≋' выставляется автоматом вокруг найденных кораблей.
-        self.assertEqual(game.check_hit(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
 
     def test_search_ortogonal_surround(self):
         '''Составление словаря ортогонального окружения точки'''
@@ -533,28 +533,28 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_turn = send_mock  # чтобы не терять один вариант из перспективного хода
         game.stage = 'user must try to hit'
         game.remaining_users_ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['а'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('а', 10)])
         self.assertEqual(set(game.assuming_hit), set([('а', 9),('б', 10)]))
         game.previously_bot_turn = ('б', 10)
         game.assuming_hit.remove(('б', 10))
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['б'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('а', 10),('б', 10)])
         self.assertEqual(game.assuming_hit, [('в', 10)])
         game.previously_bot_turn = ('в', 10)
         game.assuming_hit.remove(('в', 10))
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['в'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 3)
         self.assertEqual(game.status_users_ship['place'], [('а', 10),('б', 10),('в', 10)])
         self.assertEqual(game.assuming_hit, [('г', 10)])
         game.previously_bot_turn = ('г', 10)
         game.assuming_hit.remove(('г', 10))
-        self.assertEqual(game.got_reply_about_our_turn(reply='убил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['а'][9], KILL)
         self.assertEqual(game.enemy_board['б'][9], KILL)
         self.assertEqual(game.enemy_board['в'][9], KILL)
@@ -566,7 +566,7 @@ class TestSeaBattle(unittest.TestCase):
 
         # ранение в окруженной всеми * клетки
         game.previously_bot_turn = ('е', 2)
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['е'][1], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('е', 2)])
@@ -576,7 +576,7 @@ class TestSeaBattle(unittest.TestCase):
         # убийство 1 палубника
         game.previously_bot_turn = ('е', 2)
         game.assuming_hit = []
-        self.assertEqual(game.got_reply_about_our_turn(reply='убил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['е'][1], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -585,28 +585,28 @@ class TestSeaBattle(unittest.TestCase):
 
         # ранение в середину 3-палубника
         game.previously_bot_turn = ('б', 4)
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'),(ANY,'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['б'][3], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('б', 4)])
         self.assertEqual(set(game.assuming_hit), set([('в', 4), ('б', 3), ('б', 5), ('а', 4)]))
         game.previously_bot_turn = ('б', 3)
         game.assuming_hit.remove(('б', 3))
-        self.assertEqual(game.got_reply_about_our_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['б'][2], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('б', 4),('б', 3)])
         self.assertEqual(set(game.assuming_hit), set([('б', 2), ('б', 5)]))
         game.previously_bot_turn = ('б', 2)
         game.assuming_hit.remove(('б', 2))
-        self.assertEqual(game.got_reply_about_our_turn(reply='мимо'), (ANY, 'user must try to hit'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), (ANY, 'user must try to hit'))
         self.assertEqual(game.enemy_board['б'][1], MISSED)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('б', 4),('б', 3)])
         self.assertEqual(set(game.assuming_hit), set([('б', 5)]))
         game.previously_bot_turn = ('б', 5)
         game.assuming_hit.remove(('б', 5))
-        self.assertEqual(game.got_reply_about_our_turn(reply='убил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
         self.assertEqual(game.enemy_board['б'][4], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -630,7 +630,7 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.lazy_user_board = {}
         test_str = 'Вот и кончилась наша игра.\nЯ потопил все твои корабли!\nУ меня осталось: 1 фрегат, 3 корвета, 6 катеров.\nУ тебя кораблей то и не осталось.'
-        self.assertEqual(game.got_reply_about_our_turn(reply='убил'), (test_str, 'end the game'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (test_str, 'end the game'))
         self.assertEqual(game.enemy_board['й'][3], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -639,13 +639,13 @@ class TestSeaBattle(unittest.TestCase):
         # Проверка на мимо
         game.remaining_users_ships = [4, 3, 2, 1]
         game.previously_bot_turn = ('г', 1)
-        self.assertEqual(game.got_reply_about_our_turn(reply='мимо'), (ANY, 'user must try to hit'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), (ANY, 'user must try to hit'))
         self.assertEqual(game.enemy_board['г'][0], MISSED)
 
         # Проверка на пошел на хер
         game.remaining_users_ships = [4, 3, 2, 1]
         game.previously_bot_turn = ('г', 1)
-        self.assertEqual(game.got_reply_about_our_turn(reply='пошел нахер'), ('Эээ, не понял. Повтори!', 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='пошел нахер'), ('Эээ, не понял. Повтори!', 'wait answer from user'))
         self.assertEqual(game.enemy_board['г'][0], MISSED)
 
     def test_count_result_game(self):

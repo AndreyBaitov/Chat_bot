@@ -358,7 +358,8 @@ class SeaBattle:
             return 'Повтори, я тебя не понял'
 
     def setup_game_step_4(self, message):
-        '''Генерация полей и выбор уровня сложности'''
+        '''Генерация полей и выбор уровня сложности. self.who_is_answered отвечает за то, какая функция будет вызываться
+        после попытки бота: либо ждём ответа от пользователя либо сами проверяем'''
 
         if any([_ in message for _ in ['нет', 'не']]):  # пользователь сам рисует поле.
             answer = 'Тогда расставляй корабли сам!\n' \
@@ -412,7 +413,7 @@ class SeaBattle:
             log.info(f'Cheat mode on. Potential places are {self.cheat_list}')
         else:
             return 'Не понял!'
-        self.stage = self.check_hit
+        self.stage = self.check_hit_on_bot_board
         return answer
 
     def run(self, message: str):
@@ -420,7 +421,7 @@ class SeaBattle:
            предположим мы будем хранить текущее состояние в отдельной переменной'''
         message = message.lower()
 
-        # Обработка команд боту
+        # Обработка команд боту todo обработка команд может быть только в игре, но не при старте
         if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):
             answer = self.result_game()
             self.stage = 'end the game'
@@ -429,10 +430,10 @@ class SeaBattle:
             bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
             user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
             return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}.\nСохраняю игру!'
-        elif any([_ in message for _ in ['покажи', 'показать', 'поле']]):  # проверка показ полей
+        elif any([_ in message for _ in ['покажи', 'показать']]):  # проверка показ полей
             self.show_users_boards()
             return 'Океюшки'
-        elif any([_ in message for _ in ['показывай поле каждый ход']]):
+        elif any([_ in message for _ in ['показывай поле каждый ход', 'каждый ход']]):
             self.show_every_turn = True
             return 'Океюшки'
         elif any([_ in message for _ in ['помощь', 'помошь', 'помоги', 'хелп']]):
@@ -443,28 +444,35 @@ class SeaBattle:
             return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}'
 
         answer = self.stage(message)
+
         if self.show_every_turn:  # показывать каждый ход
             self.show_users_boards()
+
         return answer
+    #todo при победе дублируется сообщение о победе
+    def check_lazy_users_board(self, answer: str) -> str:
+        '''Проверяет за игрока, попал ли бот, и дополняет ответ, пока бот не промахнётся'''
 
-    def check_lazy_users_board(self) -> str:
-        '''Проверяет за игрока, попал ли бот, и отвечает стандартной фразой'''
-        time.sleep(1)
-        x,y = self.previously_bot_turn
-        if self.lazy_user_board[x][y-1] == SHIP:
-            place = x + ' ' + str(y)
-            answer, situation = self.check_killing_ship(place=place,board=self.lazy_user_board,status=self.status_users_living_ships, ships=self.remaining_users_ships)
-        elif self.lazy_user_board[x][y-1] == EMPTY:
-            answer = 'Ч**т! Мимо!'
-            self.lazy_user_board[x][y - 1] = MISSED
-        elif not self.remaining_users_ships: #  проверка в конце игры
-            self.stage = 'end the game'
-            return ''
-        else:
-            raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
-        return answer + ' '
+        while True:
+            x,y = self.previously_bot_turn
+            if self.lazy_user_board[x][y-1] == SHIP:
+                place = x + ' ' + str(y)
+                phrase_lazy_user = self.check_killing_ship(place=place,board=self.lazy_user_board,status=self.status_users_living_ships, ships=self.remaining_users_ships)
+                answer += '\n' + phrase_lazy_user + '\n' + self.user_reply_about_bot_turn(phrase_lazy_user)
+            elif self.lazy_user_board[x][y-1] == EMPTY:
+                phrase_lazy_user = 'Ч**т! Мимо!'
+                self.lazy_user_board[x][y - 1] = MISSED
+                self.stage = self.check_hit_on_bot_board
+                reply = self.user_reply_about_bot_turn(phrase_lazy_user)
+                return answer + '\n' + phrase_lazy_user + reply
+            elif not self.remaining_users_ships: #  проверка в конце игры
+                reply = self.result_game()
+                self.stage = 'end the game'
+                return answer + '\n' + reply
+            else:
+                raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
 
-    def cheat_mode(self,turn: str) -> str:
+    def cheat_mode(self,turn: str, x: str, y: int) -> str:
         '''Работа с кораблём-призраком в режиме сложности 3'''
 
         # чтобы не казалось, что бот жульничает, иногда 50% он сдает корабль призрак предпоследним
@@ -493,7 +501,7 @@ class SeaBattle:
                                              ships=self.remaining_bots_ships)
         return answer
 
-    def check_hit(self, turn: str) -> str:
+    def check_hit_on_bot_board(self, turn: str) -> str:
         '''Проверяет попал ли игрок. Возвращает ответ и ставит stage в зависимости от результата.'''
 
         if not (turn := self.check_phrase_about_try(turn)):  # проверяет валидность хода игрока, стандартизируя его ответ
@@ -503,13 +511,16 @@ class SeaBattle:
         x, y = self.refactor(turn)
         if self.bot_board[x][y - 1] == EMPTY:      # промах
             if self.level == 3:                     # cheat_mode on
-                if (answer := self.cheat_mode(turn))
+                if (answer := self.cheat_mode(turn, x, y)):
                     return answer
             # обычная обработка без читов и при большом списке с читами
             self.bot_board[x][y - 1] = MISSED
             bot_turn = self.bot_turn()
             answer = f'Мимо!\nМой ход: {bot_turn}'
-            self.stage = self.got_reply_about_our_turn
+            self.stage = self.user_reply_about_bot_turn  # ждём ответа от пользователя попал или мимо
+            if self.lazy_user_board:  # если мы проверяем за пользователя, то обрабатываем сами, пока не промахнемся
+                answer = self.check_lazy_users_board(answer)
+                self.stage = self.check_hit_on_bot_board  # ждём ответа от пользователя куда теперь он бьет
 
         elif self.bot_board[x][y - 1] == SHIP:  # попал, проверка на целостность всего корабля
             answer = self.check_killing_ship(place=turn, board=self.bot_board, status=self.status_bots_living_ships, ships=self.remaining_bots_ships)
@@ -517,11 +528,14 @@ class SeaBattle:
         else: # wound, kill, missed или not_perspective, то есть ход глупый
             if not self.level:                          # уровень сложности 0
                 answer = 'Уже было, давай другое место!'
-                self.stage = self.check_hit
+                self.stage = self.check_hit_on_bot_board
             else:                                       # уровень сложности 1,2...
                 bot_turn = self.bot_turn()  # ход бота
                 answer = f'Мимо!\nМой ход: {bot_turn}'
-                self.stage = self.got_reply_about_our_turn
+                self.stage = self.user_reply_about_bot_turn  # ждём ответа от пользователя попал или мимо
+                if self.lazy_user_board:  # если мы проверяем за пользователя, то обрабатываем сами, пока не промахнемся
+                    answer = self.check_lazy_users_board(answer)
+                    self.stage = self.check_hit_on_bot_board  # ждём ответа от пользователя куда теперь он бьет
         return answer
 
     def bot_turn(self):
@@ -559,7 +573,8 @@ class SeaBattle:
         if status[search]['hits'] == 1:  # то есть осталась одна жизнь, а значит мы его убили
             answer = 'Убил!'
             self.filling_not_perspective(status[search], board=board) # заменяем клетки корабля на KILL и вокруг
-            self.assuming_hit = []  # обнуляем список перспективных целей
+            if board == self.lazy_user_board:  # если мы обрабатываем попадания бота во вражеский корабль, а иначе бот обнуляет свой список при убийстве его кораблей игроком, функция то общая
+                self.assuming_hit = []  # обнуляем список перспективных целей бота
             decks = len(status[search]['place'])  # кол-во палуб исходного корабля
             ships.remove(decks)  # удаляем из списка кораблей
             del status[search]  # убираем корабль из списка словарей
@@ -572,16 +587,16 @@ class SeaBattle:
             status[search]['hits'] -= 1 # вычитаем одну жизнь
             board[x][y-1] = WOUND
 
-        self.stage = self.check_hit
+        self.stage = self.check_hit_on_bot_board
         return answer
 
-    def got_reply_about_our_turn(self, reply: str) -> str:
+    def user_reply_about_bot_turn(self, reply: str) -> str:
         '''Здесь Обрабатывается ответ игрока, ведущего своё поле, на наш зависимости от результата.
         Оно дублируется с check_killing_ship, для чего надо поставить костыль
         Также выдает ответ строкой. Если мы попали, сразу дает следующий ход в той же строке'''
         reply = reply.lower()
         x,y = self.previously_bot_turn
-        log.debug(f'Список перспективных целей бота in got_reply= {self.assuming_hit}')
+        log.debug(f'Список перспективных целей бота in user_reply= {self.assuming_hit}')
         if 'попал' in reply or 'ранил' in reply:
             self.enemy_board[x][y - 1] = WOUND  # надо записать в поле проверок, очертить круг вариантов и выдать еще один удар
             self.status_users_ship['hits'] += 1  # ведем словарь жертвы типа {hits=2, place=[('a',1),('b',2)]} для обработки, где hits это не жизни, а удары
@@ -590,7 +605,7 @@ class SeaBattle:
             bot_turn = self.bot_turn()
             answer = random.choice(['Отлично!','Врагу не сдается ваш гордый Варяг!','Ха!','Иллитидская сила!','Прямой наводкой!','Ура!']) + \
                      '\n' + random.choice(['Теперь','А мы вот так','Сейчас','Попробую','Эээ']) + ': ' + bot_turn
-            self.stage = self.got_reply_about_our_turn
+            self.stage = self.check_hit_on_bot_board
         elif 'убил' in reply or 'прикончил' in reply:  # надо записать в поле проверок и выдать еще один удар
             self.status_users_ship['hits'] += 1
             self.status_users_ship['place'].append((x,y))
@@ -609,11 +624,11 @@ class SeaBattle:
                 return answer
             bot_turn = self.bot_turn()
             answer = random.choice(['Вот так!','Получай!','На!','***!','Так тебе!','Вооо!']) + ' : ' + bot_turn
-            self.stage = self.got_reply_about_our_turn
+            self.stage = self.check_hit_on_bot_board
         elif 'мимо' in reply or 'промазал' in reply:
             self.enemy_board[x][y - 1] = MISSED # надо записать в поле проверок и предложить юзеру сделать ход
             answer = random.choice(['Ясненько!','Жаль!','Эээх!','***!','Упс!','Тааак!']) + ' ' + random.choice(['Твой ход.','Ходи.','Стреляй.','Шмаляй.','Прицелься получше.','Давай.','Пробуй.'])
-            self.check_hit
+            self.check_hit_on_bot_board
         elif 'вот и кончилась наша' in reply:
             self.stage = 'end the game'
             return ''
@@ -714,7 +729,7 @@ class SeaBattle:
 
     def check_valid_place(self, x: str, y: int):
         '''Обрабатывает валидность точки в рамках поля. Если выходит, выдает False, при норме выдает True'''
-        return not (ord(x) < 1072 or ord(x) > ord('й') or y < 1 or y > 10)
+        return not (ord(x) < 1072 or ord(x) > ord(WIDTH) or y < 1 or y > DEEP)
 
     def check_phrase_about_try(self, phrase: str):
         '''Обрабатывает ответ игрока на валидность попытки. Если бот не понял, выдает False, если понял, то приводит к стандартному виду и отдает строкой'''
@@ -784,19 +799,13 @@ class SeaBattle:
         return (remaining_ships, surviving_part_of_ships)
 
 if __name__ == '__main__':
-    game = SeaBattle(375353535)
+    game = SeaBattle(395305264)
     answer = game.run('')
     print(answer)
     while True:
-        message = ''
-        if game.stage == 'user must try to hit':
-            message = input('Твой ход: ')
-        elif game.stage == 'wait answer from user':
-            message = input('Твой ответ: ')
-        elif 'start the game' in game.stage:
-            message = input('Твой выбор: ')
-        elif game.stage == 'end the game':
+        if game.stage == 'end the game':
             break
+        message = input('Твой ход: ')
         answer = game.run(message)
         print(answer)
 
