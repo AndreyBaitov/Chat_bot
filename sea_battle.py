@@ -58,7 +58,7 @@ class SeaBattle:
         self.lazy_user_board = {}  # по умолчанию пустой словарь, но для ленивых игроков, бот может сам расставлять их корабли и показывать его
         self.enemy_board = {}  #предполагаемое для бота поле игрока
         self.situation = 'start the game'
-        self.show_every_turn = True  # переменная показывания поля каждый ход
+        self.show_every_turn = False  # переменная показывания поля каждый ход
         self.bot_board = {}
         self.cheat_list = []
         url = 'https://vk.com/id' + str(id)
@@ -441,6 +441,9 @@ class SeaBattle:
             return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}.\nСохраняю игру!'
         elif any([_ in message for _ in ['покажи', 'показать', 'поле']]):  # проверка показ полей
             self.show_users_boards()
+            return 'Океюшки'
+        elif any([_ in message for _ in ['показывай поле каждый ход']]):
+            self.show_every_turn = True
             return 'Океюшки'
         elif any([_ in message for _ in ['помощь', 'помошь', 'помоги', 'хелп']]):
             return 'Чтобы выйти, набери "выход".\nЧтобы получить список сохравнишхся в живых кораблей, набери "корабли"\nЧтобы увидеть свои поля, набери "покажи"'
