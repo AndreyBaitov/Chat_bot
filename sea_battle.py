@@ -425,7 +425,6 @@ class SeaBattle:
         try:  #обработка команд может быть только в игре, но не при старте, при старте будет вываливаться ошибка
             if any([_ in message for _ in ['выход','выйти','конец','надоел','сдаюсь']]):
                 answer = self.result_game()
-                self.stage = 'end the game'
                 return answer
             elif any([_ in message for _ in ['сохрани']]):
                 bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
@@ -534,8 +533,8 @@ class SeaBattle:
                 answer = f'Мимо!\nМой ход: {bot_turn}'
                 self.stage = self.user_reply_about_bot_turn  # ждём ответа от пользователя попал или мимо
                 if self.lazy_user_board:  # если мы проверяем за пользователя, то обрабатываем сами, пока не промахнемся
-                    answer = self.check_lazy_users_board(answer)
                     self.stage = self.check_hit_on_bot_board  # ждём ответа от пользователя куда теперь он бьет
+                    answer = self.check_lazy_users_board(answer)  # если корабли кончились тут проставится нужный флаг
         return answer
 
     def bot_turn(self):
@@ -580,7 +579,6 @@ class SeaBattle:
             del status[search]  # убираем корабль из списка словарей
             if not status: # проверка есть ли вообще корабли, оставшиеся в живых?
                 answer = 'Потопил!\n' + self.result_game()
-                self.stage = 'end the game'
                 return answer
         else:
             answer = 'Ранил!'
@@ -621,7 +619,6 @@ class SeaBattle:
                 # if self.lazy_user_board:  # Если бот сам проверяет, то ответ на конец уже есть
                 #     return ''
                 answer = self.result_game()
-                self.stage = 'end the game'
                 self.assuming_hit = []  # обнуляем список перспективных целей, их больше нет
                 return answer
             bot_turn = self.bot_turn()
@@ -765,8 +762,8 @@ class SeaBattle:
             winner = 'Ты потопил все мои корабли!'
         if users_score == 0:
             winner = 'Я потопил все твои корабли!'
-        answer = f'Вот и кончилась наша игра.\n{winner}\nУ меня {bots_ships}.\nУ тебя {user_ships}.'
-        return answer
+        self.stage = 'end the game'
+        return f'Вот и кончилась наша игра.\n{winner}\nУ меня {bots_ships}.\nУ тебя {user_ships}.'
 
     def count_result_game(self, ships: list, board: dict) -> tuple:
         '''Вычисляет по окончании игры оставшиеся корабли и выдает строку и сумму палуб выживших судов'''
