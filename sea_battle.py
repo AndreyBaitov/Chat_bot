@@ -447,12 +447,10 @@ class SeaBattle:
             return 'Не понял'
 
         answer = self.stage(message)    # основная часть работы, в переменной хранится соответствующая функция
-
         if self.show_every_turn:        # показ поля в терминале
             self.show_users_boards()
-
         return answer
-    #todo при победе дублируется сообщение о победе0
+
     def check_lazy_users_board(self, answer: str) -> str:
         '''Проверяет за игрока, попал ли бот, и дополняет ответ, пока бот не промахнётся'''
 
@@ -469,9 +467,8 @@ class SeaBattle:
                 reply = self.user_reply_about_bot_turn(phrase_lazy_user)
                 return answer + '\n' + phrase_lazy_user + reply
             elif not self.remaining_users_ships: #  проверка в конце игры
-                reply = self.result_game()
                 self.stage = 'end the game'
-                return answer + '\n' + reply
+                return answer
             else:
                 raise TypeError(f'Что-то неправильное в поиске целей у бота. Он выбрал {self.lazy_user_board[x][y-1]}')
 
@@ -582,7 +579,7 @@ class SeaBattle:
             ships.remove(decks)  # удаляем из списка кораблей
             del status[search]  # убираем корабль из списка словарей
             if not status: # проверка есть ли вообще корабли, оставшиеся в живых?
-                answer = self.result_game()
+                answer = 'Потопил!\n' + self.result_game()
                 self.stage = 'end the game'
                 return answer
         else:
@@ -621,6 +618,8 @@ class SeaBattle:
             self.status_users_ship['hits'] = 0  # обнуляем словарь для следующей жертвы
             self.status_users_ship['place'] = []
             if not self.remaining_users_ships:  # у противника кончились корабли, конец игры
+                # if self.lazy_user_board:  # Если бот сам проверяет, то ответ на конец уже есть
+                #     return ''
                 answer = self.result_game()
                 self.stage = 'end the game'
                 self.assuming_hit = []  # обнуляем список перспективных целей, их больше нет
