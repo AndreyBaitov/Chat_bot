@@ -68,7 +68,6 @@ class Bot:
         self.upload = vk_api.VkUpload(vk=self.vk)
         self.array_users = {1:'2'}  #словарь, где по id: int юзера хранится лог {123456:[[time,obj,txt],[time,obj,txt]]} Непустой, чтобы не было ошибки итеракции по нему при опросе
         self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится name: str сценария
-        self.GAMES = {GameTowns: self.game_towns, SeaBattle:self.game_sea_battle, BullsCows:self.game_bulls_cows}  # словарь классов игр и соответствующих функций
         self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой'],BullsCows:['быки','коровы']}  # словарь классов игр и ключевых слов
 
 
@@ -171,8 +170,7 @@ class Bot:
         '''Формирование ответа на новое входящее сообщение'''
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
         if scenario := self.array_users_in_scenario[event.message['from_id']]: # Значит игрок в каком-то сценарии
-            run = self.GAMES[scenario.__class__]
-            answer = run(event)
+            answer = self.game(event)
             return answer
 
         # 2. Проверка на мат
@@ -331,19 +329,28 @@ class Bot:
             pickle.dump(user_instance, file)
         self.array_users_in_scenario[user_id] = None  # стираем из памяти
 
-    def game_towns(self, event):
-        '''Обработка игры в города'''
-        # todo сделать функцию универсальной
-        name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
-        town = event.message['text']
+    def game(self, event):
+        '''Обработка любой игры. Работает с экземпляром соответствующего класса, извлекаемый из соотв. словаря по id
+        Игра:
+            1. Должна быть сделана на классе.
+            2. В классе должна иметь функцию run, которая принимает текстовую строку и отдает текстовую строку ответа.
+            3. Должна иметь атрибут stage для сверки состояния игры.
+            4. конец игры должен характеризоваться атрибутом stage = 'end the game'.
+            5. Сохранение игры осуществляется посредством передачи в ответе ключевых слов в любом месте "Сохраняю игру".
+            6. Сохранение игры осуществляется за счёт сохранения экземпляра, загрузка обратна.
+            7. Сохраняемый экземпляр должен иметь атрибут message_after_load: str, который будет выдан юзеру после загрузки.
+        '''
+
+        name_of_user = ''                           # Если общение в личке, то обращение по имени к игроку не требуется
         user_id = event.message['from_id']
+        users_turn = event.message['text']
         game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
-        answer = game.run(town)  # посылает город игрока в экземпляр и получает ответ
-        log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
+        answer = game.run(users_turn)                 # посылает ответ игрока в экземпляр и получает ответ
+
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
         if game.stage == 'end the game':  # выход из игры
-            filename = 'saved_games/Saved_' + 'GameTowns' + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
+            filename = 'saved_games/Saved_' + game.__class__.__qualname__ + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
             if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
                 os.remove(filename)
             self.array_users_in_scenario[user_id] = None
@@ -351,32 +358,6 @@ class Bot:
             user_instance = self.array_users_in_scenario[user_id]
             self.save_games(user_id,user_instance)
         return name_of_user + answer
-
-    def game_sea_battle(self, event):
-        '''Обработка игры в Морской бой'''
-        # todo сделать функцию универсальной
-        user_id = event.message['from_id']
-        name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
-        turn = event.message['text']
-        game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
-        answer = game.run(turn)  # посылает ход игрока в экземпляр и получает ответ
-
-        if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
-            name_of_user = game.user_name + ': '
-        if game.stage == 'end the game':  # выход из игры
-            filename = 'saved_games/Saved_' + 'SeaBattle' + str(event.message['from_id']) + '.svg'
-            if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
-                os.remove(filename)
-            self.array_users_in_scenario[user_id] = None
-        elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-            user_instance = self.array_users_in_scenario[user_id]
-            self.save_games(user_id,user_instance)
-        return name_of_user + answer
-
-    def game_bulls_cows(self,event):
-        '''Игра быки и коровы'''
-        #todo
-        pass
 
 if __name__ == '__main__':
     bot = Bot(group_id=GROUP_ID, token=TOKEN)
