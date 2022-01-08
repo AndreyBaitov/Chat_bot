@@ -386,7 +386,9 @@ class SeaBattle:
             elif any([_ in message for _ in ['сохрани']]):
                 bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
                 user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
-                return f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}.\nСохраняю игру!'
+                answer = f'У меня {bots_ships}\nУ тебя {user_ships}\nСчёт: {bots_score} - {users_score}.\nСохраняю игру!'
+                self.message_after_load = answer.replace('Сохраняю игру', 'Твой ход')  # с этого сообщения бот начнёт сохранённую игру
+                return answer
             elif any([_ in message for _ in ['покажи', 'показать']]):  # проверка показ полей
                 self.show_users_boards()
                 return 'Океюшки'
