@@ -356,11 +356,10 @@ class Bot:
         turn = event.message['text']
         game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
         answer = game.run(turn)  # посылает ход игрока в экземпляр и получает ответ
-        while game.situation == "check user's board myself":  # ситуация, где боту надо накопить ответы
-            answer += '\n' + game.run('')
+
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
-        if game.situation == 'end the game':  # выход из игры
+        if game.stage == 'end the game':  # выход из игры
             filename = 'saved_games/Saved_' + 'SeaBattle' + str(event.message['from_id']) + '.svg'
             if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
                 os.remove(filename)
