@@ -314,7 +314,6 @@ class Bot:
             user_instance = pickle.load(file)
         self.array_users_in_scenario[user_id] = user_instance
         answer = user_instance.message_after_load
-        # garbage = user_instance.run(' ')
         return answer
 
     def save_games(self, user_id: int, user_instance):
@@ -335,16 +334,13 @@ class Bot:
         log.debug(f'{event.message["peer_id"]},{event.message["from_id"]}')
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
             name_of_user = game.user_name + ': '
-        if 'Горе мне' in answer or 'похоже я выиграл!' in answer:  # выход из игры
+        if game.stage == 'end the game':  # выход из игры
             filename = 'saved_games/Saved_' + 'GameTowns' + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
             if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
                 os.remove(filename)
             self.array_users_in_scenario[user_id] = None
         elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
             user_instance = self.array_users_in_scenario[user_id]
-            last_town = user_instance.list_choosed_towns[-1]
-            user_instance.message_after_load = f'Продолжаем! Последний названный город - {last_town}. Твой ход.'
-            # user_instance.message_after_load = answer.replace('Сохраняю игру', 'Твой ход') надо заменить на это
             self.save_games(user_id,user_instance)
         return name_of_user + answer
 
@@ -366,7 +362,6 @@ class Bot:
             self.array_users_in_scenario[user_id] = None
         elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
             user_instance = self.array_users_in_scenario[user_id]
-            user_instance.message_after_load = answer.replace('Сохраняю игру','Твой ход')
             self.save_games(user_id,user_instance)
         return name_of_user + answer
 
