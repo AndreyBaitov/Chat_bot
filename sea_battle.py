@@ -474,6 +474,7 @@ class SeaBattle:
     def cheat_mode(self,turn: str, x: str, y: int) -> str:
         '''Работа с кораблём-призраком в режиме сложности 3'''
 
+        answer = ''
         # чтобы не казалось, что бот жульничает, иногда 50% он сдает корабль призрак предпоследним
         if len(self.cheat_list) == 2 and (x, y) in self.cheat_list and random.choice([True, False]):
             log.info(
