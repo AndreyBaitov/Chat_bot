@@ -166,49 +166,6 @@ class SeaBattle:
                 return False
         return (x, y)  # Тест пройден
 
-    def __repr__(self):
-        '''функция изображения самого экземпляра, должна выводить 2 поля (стрельба бота), (поле бота). Это чисто для отладки. '''
-        console = Console()
-        table = Table(show_header=True, show_footer=True, box=box.ROUNDED, header_style="bold yellow",
-                      footer_style="bold yellow", show_lines=True)
-        # сначала делаем столбцы
-        table.add_column(' ', style="bold yellow", width=2)  # для цифр
-        for number in range(1072, ord(WIDTH) + 1):
-            table.add_column(header=chr(number), footer=chr(number), width=1)
-        table.add_column(' ', style="bold yellow", width=2)  # для цифр
-        for number in range(1072, ord(WIDTH) + 1):
-            table.add_column(header=chr(number), footer=chr(number), width=1)
-        table.add_column(' ', style="bold yellow", width=2)  # для цифр
-        table.add_column(header='Справка', width=40)  # для справки
-        console.print(table)
-        # теперь заполняем столбцы значениями
-
-        left_board = self.bot_board
-        right_board = self.enemy_board
-
-        # создаем справку
-        reference = {i: '' for i in range(DEEP + 1)}  # справка для символов
-        reference[1] = f'{SHIP} = Корабль'
-        reference[2] = f'{WOUND} = Раненый корабль'
-        reference[3] = f'{KILL} = Убитый корабль'
-        reference[4] = f'{MISSED} = Промах'
-        reference[5] = f'{SHIP} = Целый корабль'
-        reference[6] = f'{UNKNOWN} = Сюда еще не стреляли'
-        reference[7] = f'{EMPTY} = Сюда можно и не стрелять'
-        reference[8] = f'{SHIP} = {self.names_ships[1]}'
-        reference[9] = f'{SHIP}{SHIP} = {self.names_ships[2]}'
-        reference[10] = f'{SHIP}{SHIP}{SHIP} = {self.names_ships[3]}'
-
-        # заполняем строки
-        right_board = self.board_to_str(right_board)
-        left_board = self.board_to_str(left_board)
-        for number in range(1, DEEP + 1):
-            left_line = left_board[number]
-            right_line = right_board[number]
-            table.add_row(str(number), *left_line, str(number), *right_line, str(number), reference[number])
-        console.print(table)
-        return ' '
-
     def replace_obj_in_boards (self, dirty_board: dict, old: str, new: str) -> dict:
         '''Меняет во входящем словаре old на new'''
         clean_board = {}
