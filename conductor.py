@@ -284,8 +284,17 @@ class Bot:
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], attachment=attachment)
 
     def start_game(self, message):
-        '''функция запуска игры в города. Образуем экземпляр соответствующего класса и пихаем его в массив играющих'''
-        #todo сделать функцию универсальной
+        '''Запуск любой игры. Образует экземпляр соответствующего класса и пихает его в словарь играющих.
+        Игра:
+            1. Должна быть сделана на классе.
+            2. В классе должна иметь функцию run, которая принимает текстовую строку и отдает текстовую строку ответа.
+            3. Должна иметь атрибут stage для сверки состояния игры.
+            4. конец игры должен характеризоваться атрибутом stage = 'end the game'.
+            5. Сохранение игры осуществляется посредством передачи в ответе ключевых слов в любом месте "Сохраняю игру".
+            6. Сохранение игры осуществляется за счёт сохранения экземпляра, загрузка обратна.
+            7. Сохраняемый экземпляр должен иметь атрибут message_after_load: str, который будет выдан юзеру после загрузки.
+        '''
+
         user_id = message['from_id']
         text = message['text'].lower()
         words = text.split(' ')
@@ -296,13 +305,12 @@ class Bot:
                 founded_klass = klass
         if not founded_klass:
             return 'Я не знаю такой игры'
-        klass = founded_klass
-        if answer := self.load_games(klass, user_id):
-            return answer
 
-        user_instance = klass(user_id)  # иначе создаем экземпляр и начинаем игру
+        if answer := self.load_games(founded_klass, user_id):   # Если есть сохраненная игра, мы ее загружаем
+            return answer                                       # и выдаем сохраненное сообщение после загрузки
+        user_instance = founded_klass(user_id)                  # иначе создаем экземпляр и начинаем игру
         self.array_users_in_scenario[user_id] = user_instance
-        answer = user_instance.run(' ')
+        answer = user_instance.run(' ')                 # запускаем пустышку, чтобы получить стартовое сообщение игры
         return answer
 
     def load_games(self, klass, user_id: int):
@@ -325,7 +333,7 @@ class Bot:
 
     def game_towns(self, event):
         '''Обработка игры в города'''
-
+        # todo сделать функцию универсальной
         name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
         town = event.message['text']
         user_id = event.message['from_id']
@@ -346,7 +354,7 @@ class Bot:
 
     def game_sea_battle(self, event):
         '''Обработка игры в Морской бой'''
-
+        # todo сделать функцию универсальной
         user_id = event.message['from_id']
         name_of_user = ''  # Если общение в личке, то обращение по имени к игроку не требуется
         turn = event.message['text']
