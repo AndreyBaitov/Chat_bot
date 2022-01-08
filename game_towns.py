@@ -23,11 +23,11 @@ class GameTowns:
         self.id = id
         self.list_choosed_towns = []
         self.list_towns = self.create_list_towns()
-        self.time = time.time()  # переменная, где хранится время последнего ответа для определения не надоело ли игроку
         self.count_wrong_answers = 0
         url = 'https://vk.com/id' + str(id)
         user = NameParser(url)
         self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
+        self.stage = 'start the game'  # переменная для обозначения конца игры
 
     def create_list_towns(self):
         with open('resources/towns/cities.json', 'r', encoding='utf-8') as file:  # основной список городов 10 тыс
@@ -49,56 +49,70 @@ class GameTowns:
 
     def run(self, town: str = 'Москва'):
         '''Непосредственно проверка города и выдача ответа в виде строки'''
-        self.time = time.time()  #обновляем переменную времени общения вне зависимости от ответа. Скуку проверяет бот
+
+        if self.stage == 'start the game':
+            self.stage = 'game'
+            return 'Добро пожаловать в игру Города, назови свой первый город'
+
+        # Обработка команд.
         town = town.lower()   #все в строчный регистр, чтобы упростить проверку команд
         if any([_ in town for _ in ['сохрани','сейв','запомни']]):  #пользователь хочет сохранить игру
             ending = self.choose_end_char_number(len(self.list_choosed_towns))
-            reply = f'Сохраняю игру, чтобы продолжить, начни игру заново. Мы уже назвали {len(self.list_choosed_towns)} город{ending}'
-            return reply                                    # бот должен сохранить игру по ключу сохраняю игру!
+            last_town = self.list_choosed_towns[-1]
+            answer = f'Мы уже назвали {len(self.list_choosed_towns)} город{ending}.\nСохраняю игру, чтобы продолжить, начни игру заново.'
+            self.message_after_load = answer.replace('Сохраняю игру, чтобы продолжить, начни игру заново.', f'Последним я назвал: {last_town}. Твой ход!')  # с этого сообщения бот начнёт сохранённую игру
+            return answer
         if any([_ in town for _ in ['надоело','устал','выход','выйти','удали']]):  #пользователь хочет закончить
             ending = self.choose_end_char_number(len(self.list_choosed_towns))
-            reply = f'Что ж, похоже я выиграл! Вместе мы назвали {len(self.list_choosed_towns)} город{ending}'  # конец игры
-            return reply                                    # бот должен закончить игру по ключу похоже я выиграл!...
+            self.stage = 'end the game'  # универсальная переменная во всех играх бота, означающая конец игры
+            return f'Что ж, похоже я выиграл! Вместе мы назвали {len(self.list_choosed_towns)} город{ending}'
         if town == 'да' or town == 'ага' or any([_ in town for _ in ['подскаж','подсказк','помог']]):  #пользователь просит помощи
             reply = self.prompt()
             return reply                                # бот дает подсказку, не обновляя списки
+
+        # Обработка ответов на игру.
         town = town.title()                         # Приведение ответа в приемлемый вид, как в словаре с заглавными
-        if town in self.list_choosed_towns:             #город уже есть в списке
-            adding = self.check_numbers_wrong_answers()   # проверяет сколько уже было неправильных ответов
+        if town in self.list_choosed_towns:             # Город уже есть в списке
+            adding = self.check_numbers_wrong_answers()   # Проверяет сколько уже было неправильных ответов
             return 'Такой город уже был' + adding       # Если ответов еще мало, то adding=''
-        if town not in self.list_towns:                 #Бот не знает такого города
+        if town not in self.list_towns:                 # Бот не знает такого города.
             adding = self.check_numbers_wrong_answers()
             return 'Я не знаю такого города!' + adding
-        if self.list_choosed_towns != []:  #игра не началась только что, а значит надо проверить на соответствие города бота
-            end_char = self.list_choosed_towns[-1][-1]
+        if self.list_choosed_towns:  #игра не началась только что, а значит надо проверить на соответствие города бота
+            last_town = self.list_choosed_towns[-1]
+            end_char = self.check_valid_char(last_town)
             forward_char = town[0].lower()
             if forward_char != end_char:                    # ответ неправильный
                 adding = self.check_numbers_wrong_answers()
                 return f'Не подходит!, надо на {end_char}{adding}'
         self.list_choosed_towns.append(town)        # Все проверки пройдены. Вносим в список
         reply = self.search_town(town)  #  Теперь ищем ответ
-        if reply == 'Я проиграл!':
+        if self.stage == 'end the game':
             ending = self.choose_end_char_number(len(self.list_choosed_towns))
-            reply = f'Горе мне, я проиграл! Вместе мы назвали {len(self.list_choosed_towns)} город{ending}'  # конец игры
-            return reply  # бот должен закончить игру по ключу Горе мне...
+            return f'Горе мне, я проиграл! Вместе мы назвали {len(self.list_choosed_towns)} город{ending}'
         self.list_choosed_towns.append(reply)  #Вставляем ответ в список
         return reply
 
-    def search_town(self, town: str):
-        '''Поиск подходящего города и выдача его из рандомного списка'''
-        reply = 'Я проиграл!'
-        end_char = town[-1]  # на что заканчивается город игрока
-        if any([_ in end_char for _ in ['ь','ъ','ы']]):
+    def check_valid_char(self, town: str) -> str:
+        '''Функция проверяющая, не оканчивается ли город на плохие буквы, и возвращающая в любом случае хорошую букву'''
+        end_char = town[-1]  # на что заканчивается город
+        if any([_ in end_char for _ in ['ь', 'ъ', 'ы']]):
             end_char = town[-2]
-        if any([_ in end_char for _ in ['ь','ъ','ы']]):  # на всякий случай проверим и еще один раз
+        if any([_ in end_char for _ in ['ь', 'ъ', 'ы']]):  # на всякий случай проверим и еще один раз
             end_char = town[-3]
+        return end_char
+
+    def search_town(self, town: str) -> str:
+        '''Поиск подходящего города и выдача его из рандомного списка'''
+        end_char = self.check_valid_char(town)
         acceptable_towns = []
         for city in self.list_towns:
             forward_char = city[0].lower()
             if forward_char == end_char:
                 acceptable_towns.append(city)
-        if acceptable_towns == []:
-            return reply
+        if not acceptable_towns:
+            self.stage = 'end the game'
+            return 'Я проиграл!'
         reply = random.choice(acceptable_towns)
         return reply
 
@@ -135,7 +149,8 @@ class GameTowns:
 if __name__ == '__main__':
     id = 395305264
     game = GameTowns(id)  #395305264 - мой
-    print('Добро пожаловать в игру Города, назови свой первый город')
+    answer = game.run(' ')
+    print(answer)
     while True:
         town = input('Твой ответ:')
         reply = game.run(town)
