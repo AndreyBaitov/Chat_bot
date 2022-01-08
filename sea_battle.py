@@ -709,7 +709,8 @@ class SeaBattle:
         return unity_phrase
 
     def result_game(self) -> str:
-        '''Вычисляет ответ юзеру при любом окончании игры'''
+        '''Вычисляет ответ юзеру при окончании игры из игры'''
+
         bots_ships, bots_score = self.count_result_game(self.remaining_bots_ships, self.bot_board)
         user_ships, users_score = self.count_result_game(self.remaining_users_ships, self.lazy_user_board)
         if bots_score > users_score:
@@ -755,6 +756,10 @@ class SeaBattle:
             remaining_users_ships = sum(ships)  # сколько осталось кораблей у пользователя
             correct = self.status_users_ship['hits']  # дает поправку на раненный корабль из списка выше
             surviving_part_of_ships = remaining_users_ships - correct
+
+        if self.cheat_list and board == self.bot_board:  # если список мест для корабля-призрака не пустой, значит
+            surviving_part_of_ships += 1                 # добавить + 1 к очкам, а не то, бот палится, что одного корабля нету :)
+
         return (remaining_ships, surviving_part_of_ships)
 
 if __name__ == '__main__':
