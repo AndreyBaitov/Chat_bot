@@ -53,16 +53,15 @@ except ImportError:
 #from for_work_to_users import User
 log.setLevel(logging.DEBUG)
 
-class UserState:
+class UserData:
 
-    def __init__(self, id: int, scenario: str, state: str, context):
+    def __init__(self, id: int):
 
         self.id = id
         self.log = [0]  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
-        self.game = None  # Тут хранится экземпляр класса игры
-        self.scenario = scenario
-        self.context = context
-        self.state = state
+        self.scenario = None  # переменная где хранится экземпляр сценария
+        self.context = None
+        self.state = None
         self.rage = 0  # переменная отношения бота к юзеру, изначально бот спокоен.
         url = 'https://vk.com/id' + str(id)
         user = NameParser(url)
@@ -81,7 +80,7 @@ class Bot:
         self.creator_dict.run()               # создает файлы для создания плохого словаря
         self.create_dict_bad_words()          # создает внутренний словарь бота
         self.upload = vk_api.VkUpload(vk=self.vk)
-        self.names_scenarios = {GameTowns: ['города'], SeaBattle: ['морской', 'бой'], BullsCows: ['быки', 'коровы'], Scenarios: ['сценар']}  # словарь классов игр и ключевых слов
+        self.names_scenarios = {GameTowns: ['города'], SeaBattle: ['морской', 'бой'], BullsCows: ['быки', 'коровы']}  # словарь классов игр и ключевых слов
         self.users = {1:'2'}  # словарь, где по id юзера хранится его экземпляр UserState
 
     def create_dict_bad_words(self):
@@ -123,7 +122,7 @@ class Bot:
         '''Создает пользователя для общения с ним, ключ int id пользователя'''
 
         user_id = event.message['from_id']
-        user = UserState(id=user_id, scenario=None, state=None, context=None)
+        user = UserData(id=user_id)
         self.users[user_id] = user
         return
 
@@ -190,7 +189,7 @@ class Bot:
         user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
         print(user.scenario)
         if user.scenario: # Значит игрок в каком-то сценарии
-            answer = self.game(event)
+            answer = self.continue_scenario(event)
             return answer
 
         # 2. Проверка на мат
@@ -263,7 +262,7 @@ class Bot:
                     answer = random.choice(intent['answer'])
                     break
                 else:   # запуск сценария
-                    answer = self.start_game(message)
+                    answer = self.start_scenario(message, intent['scenario'])
                     break
 
         else:  # значит ничего не совпало
@@ -305,7 +304,7 @@ class Bot:
         attachment = f'photo{owner_id}_{photo_id}_{access_key}'
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], attachment=attachment)
 
-    def start_game(self, message):
+    def start_scenario(self, message, scenario: str):
         '''Запуск любой игры или сценария. Образует экземпляр соответствующего класса и пихает его в словарь играющих.
         Игра или сценарий:
             1. Должна быть сделана на классе.
@@ -320,19 +319,24 @@ class Bot:
         user_id = message['from_id']
         text = message['text'].lower()
         words = text.split(' ')
-        # теперь надо определить в какую игру
-        founded_class = None
-        for klass, names in self.names_scenarios.items():
-            if any([_ in text for _ in names]):
-                founded_class = klass
-        if not founded_class:
-            return 'Я не знаю такой игры'
+        user = self.users[user_id]
+                                     # теперь надо определить в какую игру
+        if scenario == 'GAMES':
+            founded_class = None
+            for klass, names in self.names_scenarios.items():
+                if any([_ in text for _ in names]):
+                    founded_class = klass
+            if not founded_class:
+                return 'Я не знаю такой игры'
 
-        if answer := self.load_games(founded_class, user_id):   # Если есть сохраненная игра, мы ее загружаем
-            return answer                                       # и выдаем сохраненное сообщение после загрузки
-        user_instance = founded_class(self.users[user_id])                  # иначе создаем экземпляр и начинаем игру
-        self.users[user_id].scenario = user_instance
-        answer = user_instance.run(' ')                 # запускаем пустышку, чтобы получить стартовое сообщение игры
+            if answer := self.load_games(founded_class, user_id):   # Если есть сохраненная игра, мы ее загружаем
+                return answer                                       # и выдаем сохраненное сообщение после загрузки
+            scenario_instance = founded_class(user)                  # иначе создаем экземпляр и начинаем игру
+        else:                                                   # это не игра
+            scenario_instance = Scenarios(user, scenario)      # создаем экземпляр текстовых сценариев
+
+        user.scenario = scenario_instance
+        answer = scenario_instance.run(' ')  # запускаем пустышку, чтобы получить стартовое сообщение сценария
         return answer
 
     def load_games(self, klass, user_id: int):
@@ -353,7 +357,7 @@ class Bot:
             pickle.dump(user_instance, file)
         self.users[user_id].scenario = None # стираем из экземпляра пользователя
 
-    def game(self, event):
+    def continue_scenario(self, event):
         '''Обработка любой игры. Работает с экземпляром соответствующего класса, извлекаемый из соотв. словаря по id
         Игра:
             1. Должна быть сделана на классе.
