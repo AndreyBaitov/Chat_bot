@@ -11,7 +11,6 @@ import logging
 from rich import print, box
 from rich.console import Console
 from rich.table import Table
-from parser_name_from_vk import NameParser
 
 log = logging.getLogger('sea_battle')
 fh = logging.FileHandler("log/seabattle.log", 'a', 'utf-8')
@@ -61,9 +60,6 @@ class SeaBattle:
         self.show_every_turn = False  # переменная показывания поля каждый ход
         self.bot_board = {}
         self.cheat_list = []
-        url = 'https://vk.com/id' + str(id)
-        user = NameParser(url)
-        self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
 
     def cheat_bot_board(self) -> list:
         '''Убирает с поля бота 1-палубный корабль, если таковой есть, оставляя его в списке кораблей, а затем составляет
