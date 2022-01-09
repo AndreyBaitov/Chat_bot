@@ -5,12 +5,25 @@ ID_ADMIN = 111111111111
 # Имя для самоидентификации о чем идёт речь, токены слова на которые реагирует бот, сценарий, название сценария,
 # ответ = стандартный ответ на токены
 '''
+Шаблон для INTENTS
     {
         'name' : '',
         'tokens' : ['','','','','',''],
         'scenario' : None,
         'answer' : ['','','','','','']
     },
+
+Шаблон для SCENARIOS
+    'name_scenario' :
+                 {'steps' : {
+                     'step 1':{
+                         'text':'hey',
+                         'fault':'repeat please',
+                         'handler':'handler',
+                         'next step': 'step 2'
+                                }
+                            }
+                  },
 '''
 
 INTENTS = [
@@ -24,16 +37,55 @@ INTENTS = [
     {
         'name': 'прощание бота',
         'tokens': ['пока', 'чава', 'досвид'],
-         'scenario': None,
+        'scenario': None,
         'answer': ['Чава, какава!', 'пока', 'чава', 'досвидос', 'ауфвидерзеен']
     },
     {
-        'name': 'Старт игры в города',
-        'tokens': ['сыграем', 'города', 'продолжим'],
-        'scenario': 'TOWNS',
-        'answer': ['А давай']
+        'name': 'Старт игры',
+        'tokens': ['сыграем', 'играе', 'продолжим', 'игра'],
+        'scenario': 'GAMES',
+        'answer': ['']
+    },
+    {
+        'name': 'Подача заявки на вступление в клуб',
+        'tokens': ['подать', 'заявк', 'в клуб'],
+        'scenario': 'claim_for_club',
+        'answer': ['']
     },
 ]
+
+SCENARIOS = {'claim_for_club' :
+                 {'steps' : {
+                     'step 1':{
+                         'text':'Введите свои ФИО',
+                         'fault':'Не понял',
+                         'handler':'handler_name',
+                         'next step': 'step 2'
+                                },
+                    'step 2':{
+                         'text':'Введите свой емейл',
+                         'fault':'Не понял',
+                         'handler':'handler_email',
+                         'next step': 'step 3'
+                                },
+                    'step 3':{
+                         'text':'Согласны ли Вы с уставом клуба Чуланчик на Верфи?',
+                         'fault':'Не понял',
+                         'handler':'handler_agree_regulations',
+                         'next step': 'step 4'
+                                },
+                    'step 4':{
+                         'text':'Ваша заявка принята, ожидайте ответ на указанный Вами адрес',
+                         'fault': None,
+                         'handler': None,
+                         'next step': None
+                                }
+                            }
+                  }
+             }
+
+
+
 
 DEFAULT_ANSWERS = [
     'Ээээ',
