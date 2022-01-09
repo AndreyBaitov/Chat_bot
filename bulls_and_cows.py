@@ -1,14 +1,10 @@
 import random
 from random import randint
-from parser_name_from_vk import NameParser
 
 class BullsCows:
 
     def __init__(self, id: int):
         self.id = id
-        url = 'https://vk.com/id' + str(id)
-        user = NameParser(url)
-        self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
         self.stage = self.start_game
 
     def check_input(self,message) -> str:
