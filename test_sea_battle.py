@@ -31,7 +31,7 @@ class TestSeaBattle(unittest.TestCase):
                       'й': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']}
 
         send_mock = Mock(return_value=True)
-        bot = SeaBattle('url')
+        bot = SeaBattle(send_mock)
         bot.check_valid_place = send_mock
         self.assertFalse(bot.check_place(x='и',y=5,my_board=my_board))
         self.assertFalse(bot.check_place(x='з',y=4,my_board=my_board))
@@ -66,29 +66,31 @@ class TestSeaBattle(unittest.TestCase):
 
 
         send_mock = Mock(return_value=('а 1'))
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
+        game.level = None
         game.bot_board = my_board  #подменяем поле
         game.status_bots_living_ships = status_living_ships
         game.bot_turn = send_mock
         game.stage = 'user must try to hit'
         game.remaining_bots_ships = [4,3,3,2,2,2,1,1,1,1]
-        self.assertEqual(game.check_hit_on_bot_board(turn='а 1'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='а2'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='А 3'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='А4'), ('Мимо! Мой ход: а 1', 'wait answer from user'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='а11'), ('Не понял', 'user must try to hit'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='а 11'), ('Не понял', 'user must try to hit'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='з4'), ('Убил!', 'user must try to hit'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='г6'), ('Ранил!', 'user must try to hit'))
-        self.assertEqual(game.check_hit_on_bot_board(turn='е5'), ('Ранил!', 'user must try to hit'))
-        game.bot_board['й'][0] = '⊡'  # ⊡ Раненый корабль
-        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
-        game.bot_board['й'][0] = '⛝'  # ⛝ Убитый корабль
-        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
-        game.bot_board['й'][0] = 'ͦ'  # ͦ Промах
-        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
-        game.bot_board['й'][0] = '≋'  # '≋' выставляется автоматом вокруг найденных кораблей.
-        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), ('Уже было, давай другое место!', 'user must try to hit'))
+        self.assertEqual(game.check_hit_on_bot_board(turn='а 1'), 'Мимо!\nМой ход: а 1')
+        self.assertEqual(game.check_hit_on_bot_board(turn='а2'), 'Мимо!\nМой ход: а 1')
+        self.assertEqual(game.check_hit_on_bot_board(turn='А 3'), 'Мимо!\nМой ход: а 1')
+        self.assertEqual(game.check_hit_on_bot_board(turn='А4'), 'Мимо!\nМой ход: а 1')
+        self.assertEqual(game.check_hit_on_bot_board(turn='а11'), 'Не понял')
+        self.assertEqual(game.check_hit_on_bot_board(turn='а 11'), 'Не понял')
+        self.assertEqual(game.check_hit_on_bot_board(turn='з4'), 'Убил!')
+        self.assertEqual(game.check_hit_on_bot_board(turn='г6'), 'Ранил!')
+        self.assertEqual(game.check_hit_on_bot_board(turn='е5'), 'Ранил!')
+        game.bot_board['й'][0] = WOUND  # ⊡ Раненый корабль
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), 'Уже было, давай другое место!')
+        game.bot_board['й'][0] = KILL  # ⛝ Убитый корабль
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), 'Уже было, давай другое место!')
+        game.bot_board['й'][0] = MISSED  # ͦ Промах
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), 'Уже было, давай другое место!')
+        game.bot_board['й'][0] = NOT_PERSPECTIVE  # '≋' выставляется автоматом вокруг найденных кораблей.
+        self.assertEqual(game.check_hit_on_bot_board(turn='й1'), 'Уже было, давай другое место!')
 
     def test_search_ortogonal_surround(self):
         '''Составление словаря ортогонального окружения точки'''
@@ -102,7 +104,8 @@ class TestSeaBattle(unittest.TestCase):
                       'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         # game.my_board = my_board  # подменять поле не требуется
         result = game.search_ortogonal_surround(x='а', y=1)
         checking_dict = {'d': ('а', 2), 'r': ('б', 1)}
@@ -135,7 +138,8 @@ class TestSeaBattle(unittest.TestCase):
                       'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         # поле только для удобства и красоты
         result = game.search_full_surround(x='а', y=1)
         checking_dict = {'d': ('а', 2), 'r': ('б', 1), 'rd': ('б', 2)}
@@ -155,7 +159,8 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_check_valid_place(self):
         '''Обрабатывает валидность точки в рамках поля. Если выходит, выдает False, при норме выдает True'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         self.assertTrue(game.check_valid_place(x='з', y=2))
         self.assertTrue(game.check_valid_place(x='а', y=1))
         self.assertTrue(game.check_valid_place(x='й', y=10))
@@ -167,7 +172,8 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_check_phrase_about_try(self):
         '''Обрабатывает ответ игрока на валидность попытки. Если бот не понял, выдает False, если понял, то приводит к стандартному виду и отдает строкой'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         self.assertEqual(game.check_phrase_about_try(phrase='а1'),'а 1')
         self.assertEqual(game.check_phrase_about_try(phrase='а 1'),'а 1')
         self.assertEqual(game.check_phrase_about_try(phrase='А 1'),'а 1')
@@ -189,7 +195,8 @@ class TestSeaBattle(unittest.TestCase):
         надо проверить реакцию на пустость или непустость self.assuming_hit
         наличие неналичия UNKNOWN в user_boards
         поиск единственного UNKNOWN в поле'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         user_board = {'а': ['*', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
                       'б': [' ', ' ', 'О', 'О', 'О', ' ', ' ', ' ', ' ', 'О'],
                       'в': ['*', '*', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -207,7 +214,7 @@ class TestSeaBattle(unittest.TestCase):
         self.assertEqual(game.previously_bot_turn, ANY)
         game.enemy_board['а'][0] = ' '
         game.enemy_board['в'][0] = ' '
-        self.assertEqual(game.bot_turn(),'У меня кончились ходы, ты не жулик?')
+        self.assertEqual(game.bot_turn(),'Да ты похоже жульничаешь. Я так не играю!')
         game.enemy_board['а'][0] = '*'
         game.enemy_board['а'][1] = '*'
         game.assuming_hit = [('а', 1)]
@@ -218,7 +225,8 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_refactor(self):
         '''превращает строку вида 'а 1' в кортеж из ('a', 1)'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         self.assertEqual(game.refactor(phrase='а 1'), ('а', 1))
         self.assertEqual(game.refactor(phrase='й 1'), ('й', 1))
         self.assertEqual(game.refactor(phrase='а 10'), ('а', 10))
@@ -227,7 +235,8 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_recourse_search(self):
         '''двигается рекурсивно в сторону матрицы движения, проверяя наличие WOUND'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         user_board = {'а': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
                       'б': [' ', '*', WOUND, WOUND, '*', ' ', ' ', ' ', ' ', 'О'],
                       'в': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -297,7 +306,8 @@ class TestSeaBattle(unittest.TestCase):
         проверить на дополняемость передаваемого списка,
         '''
         # проверка на определение правильных концов корабля и сохранение потенциального списка целей
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         user_board = {'а': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
                       'б': [' ', '*', WOUND, WOUND, '*', ' ', ' ', ' ', ' ', 'О'],
                       'в': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -309,10 +319,10 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
         game.enemy_board = user_board
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, assuming_hit=[])), set([('б', 5), ('б', 2)]))
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=4, assuming_hit=[])), set([('б', 5), ('б', 2)]))
-        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='ж', y=5, assuming_hit=[]), [])
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=4, assuming_hit=[('й', 1)])), set([('б', 5), ('б', 2),('й', 1)]))
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, old_assuming_hit=[])), set([('б', 5), ('б', 2)]))
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=4, old_assuming_hit=[])), set([('б', 5), ('б', 2)]))
+        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='ж', y=5, old_assuming_hit=[]), [])
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=4, old_assuming_hit=[('й', 1)])), set([('б', 5), ('б', 2),('й', 1)]))
 
         # проверка на определение правильного конца корабля, расположенного на краю поля
         user_board = {'а': [' ', ' ', WOUND, ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -326,8 +336,8 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
         game.enemy_board = user_board
-        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='б', y=3, assuming_hit=[]), [('в', 3)])
-        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='а', y=3, assuming_hit=[]), [('в', 3)])
+        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='б', y=3, old_assuming_hit=[]), [('в', 3)])
+        self.assertEqual(game.search_variants_for_hit_wounded_ships(x='а', y=3, old_assuming_hit=[]), [('в', 3)])
 
         # проверка на определение всех 4 потенциальных направлений при попадании в корабль
         user_board = {'а': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -341,7 +351,7 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
         game.enemy_board = user_board
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, assuming_hit=[])), set([('в', 3), ('б', 2), ('б', 4), ('а', 3)]))
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, old_assuming_hit=[])), set([('в', 3), ('б', 2), ('б', 4), ('а', 3)]))
 
         # проверка на определение потенциальных направлений при попадании в корабль, если их не 4
         user_board = {'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -355,7 +365,7 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
         game.enemy_board = user_board
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, assuming_hit=[])), set([('в', 3), ('б', 2), ('б', 4)]))
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='б', y=3, old_assuming_hit=[])), set([('в', 3), ('б', 2), ('б', 4)]))
 
         # проверка на удаление бесперспективных ортогональных направлений при определении ориентации корабля
         user_board = {'а': [' ', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -369,12 +379,13 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
                       'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
         game.enemy_board = user_board
-        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='в', y=3, assuming_hit=[('б', 2), ('б', 4), ('а', 3)])), set([('а', 3), ('г', 3)]))
+        self.assertEqual(set(game.search_variants_for_hit_wounded_ships(x='в', y=3, old_assuming_hit=[('б', 2), ('б', 4), ('а', 3)])), set([('а', 3), ('г', 3)]))
 
     def test_check_killing_ship(self):
         '''Проверка ранил игрок или убил корабль бота'''
         # проверка на определение правильных концов корабля и сохранение потенциального списка целей
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         my_board =   {'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
                       'б': [' ', ' ', 'О', 'О', 'О', ' ', ' ', ' ', ' ', 'О'],
                       'в': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
@@ -398,9 +409,9 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.status_bots_living_ships = status_living_ships
         # проверка убийства 1 палубного корабля, проверка удаления его из списка и отметка в поле
-        game.stage = 'user must try to hit'
+        game.stage = game.check_hit_on_bot_board
         game.remaining_bots_ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
-        self.assertEqual(game.check_killing_ship(place='з 2', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Убил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='з 2', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Убил!')
         self.assertFalse(10 in game.status_bots_living_ships)
         self.assertEqual(game.bot_board['з'][1], KILL)
 
@@ -427,24 +438,24 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.status_bots_living_ships = status_living_ships
         # проверка ранения 2 палубного корабля, проверка его хитов в списке и отметки в поле
-        self.assertEqual(game.check_killing_ship(place='и 6', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Ранил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='и 6', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Ранил!')
         self.assertEqual(game.status_bots_living_ships[4]['hits'], 1)
         self.assertEqual(game.bot_board['и'][5], WOUND)
         # проверка убийства этого 2 палубного корабля, проверка в списке и всех 2 отметок в поле
-        self.assertEqual(game.check_killing_ship(place='и 7', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Убил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='и 7', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Убил!')
         self.assertFalse(4 in game.status_bots_living_ships)
         self.assertEqual(game.bot_board['и'][5], KILL)
         self.assertEqual(game.bot_board['и'][6], KILL)
         # проверка ранения 3 палубного корабля, проверка в списке и отметок в поле
-        self.assertEqual(game.check_killing_ship(place='е 4', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Ранил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='е 4', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Ранил!')
         self.assertEqual(game.status_bots_living_ships[3]['hits'], 2)
         self.assertEqual(game.bot_board['е'][3], WOUND)
         # проверка 2 ранения 3 палубного корабля, проверка в списке и отметок в поле
-        self.assertEqual(game.check_killing_ship(place='е 5', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Ранил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='е 5', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Ранил!')
         self.assertEqual(game.status_bots_living_ships[3]['hits'], 1)
         self.assertEqual(game.bot_board['е'][4], WOUND)
         # проверка убийства 3 палубного корабля, проверка наличия в списке и отметок в поле
-        self.assertEqual(game.check_killing_ship(place='е 6', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), ('Убил!', 'user must try to hit'))
+        self.assertEqual(game.check_killing_ship(place='е 6', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), 'Убил!')
         self.assertFalse(3 in game.status_bots_living_ships)
         self.assertEqual(game.bot_board['е'][3], KILL)
         self.assertEqual(game.bot_board['е'][4], KILL)
@@ -467,14 +478,15 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.remaining_users_ships = [3, 2, 2, 2, 1, 1, 1, 1, 1]
         game.lazy_user_board = {}
-        test_str = 'Вот и кончилась наша игра.\nТы потопил все мои корабли!\nУ меня кораблей то и не осталось.\nУ тебя осталось: 1 фрегат, 3 корвета, 5 катеров.'
-        self.assertEqual(game.check_killing_ship(place='з 4', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), (test_str, 'end the game'))
+        test_str = 'Потопил!\nВот и кончилась наша игра.\nТы потопил все мои корабли!\nУ меня кораблей то и не осталось.\nУ тебя осталось: 1 фрегат, 3 корвета, 5 катеров.'
+        self.assertEqual(game.check_killing_ship(place='з 4', board=game.bot_board, status=game.status_bots_living_ships, ships=game.remaining_bots_ships), test_str)
         self.assertFalse(9 in game.status_bots_living_ships)
         self.assertEqual(game.bot_board['з'][3], KILL)
 
     def test_filling_not_perspective(self):
         '''Заполняет поля убитого корабля KILL, вокруг него выставляет NOT_PERSPECTIVE по словарю {hits=2, place=[('a',1),('b',2)]}'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         user_board =   {'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '*', 'О'],
                       'б': [' ', ' ', 'О', 'О', 'О', ' ', ' ', ' ', '*', 'О'],
                       'в': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '*', 'О'],
@@ -513,7 +525,8 @@ class TestSeaBattle(unittest.TestCase):
     def test_got_reply_about_our_turn(self):
         '''Обрабатывает ответ игрока на наш зависимости от результата. Также выдает ответ строкой. Если мы попали, сразу дает следующий ход в той же строке'''
 
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         user_board =   {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', 'О'],
                       'б': ['*', '*', '*', '*', '*', '*', '*', ' ', '*', '*'],
                       'в': [' ', '*', '*', '*', '*', '*', ' ', ' ', '*', '*'],
@@ -533,28 +546,28 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_turn = send_mock  # чтобы не терять один вариант из перспективного хода
         game.stage = 'user must try to hit'
         game.remaining_users_ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['а'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('а', 10)])
         self.assertEqual(set(game.assuming_hit), set([('а', 9),('б', 10)]))
         game.previously_bot_turn = ('б', 10)
         game.assuming_hit.remove(('б', 10))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['б'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('а', 10),('б', 10)])
         self.assertEqual(game.assuming_hit, [('в', 10)])
         game.previously_bot_turn = ('в', 10)
         game.assuming_hit.remove(('в', 10))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['в'][9], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 3)
         self.assertEqual(game.status_users_ship['place'], [('а', 10),('б', 10),('в', 10)])
         self.assertEqual(game.assuming_hit, [('г', 10)])
         game.previously_bot_turn = ('г', 10)
         game.assuming_hit.remove(('г', 10))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), ANY)
         self.assertEqual(game.enemy_board['а'][9], KILL)
         self.assertEqual(game.enemy_board['б'][9], KILL)
         self.assertEqual(game.enemy_board['в'][9], KILL)
@@ -566,7 +579,7 @@ class TestSeaBattle(unittest.TestCase):
 
         # ранение в окруженной всеми * клетки
         game.previously_bot_turn = ('е', 2)
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['е'][1], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('е', 2)])
@@ -576,7 +589,7 @@ class TestSeaBattle(unittest.TestCase):
         # убийство 1 палубника
         game.previously_bot_turn = ('е', 2)
         game.assuming_hit = []
-        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), ANY)
         self.assertEqual(game.enemy_board['е'][1], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -585,28 +598,28 @@ class TestSeaBattle(unittest.TestCase):
 
         # ранение в середину 3-палубника
         game.previously_bot_turn = ('б', 4)
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['б'][3], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 1)
         self.assertEqual(game.status_users_ship['place'], [('б', 4)])
         self.assertEqual(set(game.assuming_hit), set([('в', 4), ('б', 3), ('б', 5), ('а', 4)]))
         game.previously_bot_turn = ('б', 3)
         game.assuming_hit.remove(('б', 3))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='ранил'), ANY)
         self.assertEqual(game.enemy_board['б'][2], WOUND)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('б', 4),('б', 3)])
         self.assertEqual(set(game.assuming_hit), set([('б', 2), ('б', 5)]))
         game.previously_bot_turn = ('б', 2)
         game.assuming_hit.remove(('б', 2))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), (ANY, 'user must try to hit'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), ANY)
         self.assertEqual(game.enemy_board['б'][1], MISSED)
         self.assertEqual(game.status_users_ship['hits'], 2)
         self.assertEqual(game.status_users_ship['place'], [('б', 4),('б', 3)])
         self.assertEqual(set(game.assuming_hit), set([('б', 5)]))
         game.previously_bot_turn = ('б', 5)
         game.assuming_hit.remove(('б', 5))
-        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (ANY, 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), ANY)
         self.assertEqual(game.enemy_board['б'][4], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -630,7 +643,7 @@ class TestSeaBattle(unittest.TestCase):
         game.bot_board = my_board
         game.lazy_user_board = {}
         test_str = 'Вот и кончилась наша игра.\nЯ потопил все твои корабли!\nУ меня осталось: 1 фрегат, 3 корвета, 6 катеров.\nУ тебя кораблей то и не осталось.'
-        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), (test_str, 'end the game'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='убил'), test_str)
         self.assertEqual(game.enemy_board['й'][3], KILL)
         self.assertEqual(game.status_users_ship['hits'], 0)
         self.assertEqual(game.status_users_ship['place'], [])
@@ -639,13 +652,13 @@ class TestSeaBattle(unittest.TestCase):
         # Проверка на мимо
         game.remaining_users_ships = [4, 3, 2, 1]
         game.previously_bot_turn = ('г', 1)
-        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), (ANY, 'user must try to hit'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='мимо'), ANY)
         self.assertEqual(game.enemy_board['г'][0], MISSED)
 
         # Проверка на пошел на хер
         game.remaining_users_ships = [4, 3, 2, 1]
         game.previously_bot_turn = ('г', 1)
-        self.assertEqual(game.user_reply_about_bot_turn(reply='пошел нахер'), ('Эээ, не понял. Повтори!', 'wait answer from user'))
+        self.assertEqual(game.user_reply_about_bot_turn(reply='пошел нахер'), 'Эээ, не понял. Повтори!')
         self.assertEqual(game.enemy_board['г'][0], MISSED)
 
     def test_count_result_game(self):
@@ -661,7 +674,8 @@ class TestSeaBattle(unittest.TestCase):
                       'и': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', '*', '*'],
                       'й': [' ', ' ', ' ', SHIP, ' ', ' ', ' ', ' ', '*', ' ']}
 
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         ships = [3, 2, 2, 2, 1, 1, 1, 1, 1]
         test_str = 'осталось: 1 фрегат, 3 корвета, 5 катеров'
         self.assertEqual(game.count_result_game(board=board,ships=ships),(test_str,14))
@@ -688,7 +702,8 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_result_game(self):
         '''Вычисляет ответ юзеру при любом окончании игры'''
-        game = SeaBattle('url')
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
         my_board =      {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', SHIP],
                       'б': ['*', '*', '*', '*', '*', '*', '*', ' ', '*', '*'],
                       'в': [' ', '*', '*', '*', '*', '*', ' ', ' ', '*', '*'],
@@ -849,27 +864,28 @@ class TestSeaBattle(unittest.TestCase):
 
     def test_show_users_boards(self):
         '''Показывает 1 или оба поля пользователя. Слева lazy_users_board или пустой, а второй генерится на основе my_board бота '''
-        game = SeaBattle('url')
-        enemy_board ={'а': [' ', '*', '*', '*', '*', ' ', '≋', '≋', '≋', '*'],
-                      'б': ['*', '*', '*', '*', '*', '*', '≋', '®', '≋', '*'],
-                      'в': [' ', '*', '*', '*', '*', '*', '≋', '≋', '≋', '*'],
-                      'г': [' ', ' ', ' ', ' ', ' ', '*', '*', ' ', '*', '*'],
-                      'д': ['*', '*', '*', 'ͦ', '≋', '≋', ' ', ' ', '*', '*'],
-                      'е': ['*', '*', '*', 'ø', 'ø', 'ø', ' ', ' ', ' ', ' '],
-                      'ж': ['*', '*', '*', '≋', 'ͦ', '≋', ' ', '*', '*', ' '],
-                      'з': [' ', '*', ' ', '*', ' ', ' ', ' ', ' ', ' ', ' '],
-                      'и': [' ', ' ', ' ', ' ', ' ', '*', '*', ' ', '*', '*'],
-                      'й': [' ', ' ', ' ', '*', ' ', ' ', ' ', ' ', '*', ' ']}
-        my_board =      {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', 'О'],
-                      'б': ['*', '*', '*', '*', '*', '*', '*', ' ', '*', '*'],
-                      'в': [' ', '*', '*', '*', '*', '*', ' ', ' ', '*', '*'],
-                      'г': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', '*', '*'],
-                      'д': ['*', '*', '*', ' ', 'ͦ', ' ', ' ', ' ', '*', '*'],
-                      'е': ['*', 'О', '*', 'ø', 'О', 'О', ' ', ' ', ' ', ' '],
-                      'ж': ['*', '*', '*', ' ', ' ', ' ', ' ', 'О', 'О', ' '],
-                      'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
-                      'и': [' ', ' ', '≋', '≋', '≋', 'О', 'О', ' ', '*', '*'],
-                      'й': [' ', ' ', '≋', '®', '≋', ' ', ' ', ' ', '*', ' ']}
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
+        enemy_board ={'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'б': [' ', ' ', SHIP, SHIP, SHIP, ' ', ' ', ' ', ' ', SHIP],
+                          'в': [' ', ' ', ' ', MISSED, ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'г': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', SHIP],
+                          'д': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+                          'е': [' ', KILL, ' ', WOUND, SHIP, SHIP, ' ', ' ', ' ', ' '],
+                          'ж': [' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' '],
+                          'з': [' ', SHIP, ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' '],
+                          'и': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', ' '],
+                          'й': [' ', ' ', ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' ']}
+        my_board =     {'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'б': [' ', ' ', SHIP, SHIP, SHIP, ' ', ' ', ' ', ' ', SHIP],
+                          'в': [' ', ' ', ' ', MISSED, ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'г': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', SHIP],
+                          'д': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
+                          'е': [' ', KILL, ' ', WOUND, SHIP, SHIP, ' ', ' ', ' ', ' '],
+                          'ж': [' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' '],
+                          'з': [' ', SHIP, ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' '],
+                          'и': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', ' '],
+                          'й': [' ', ' ', ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' ']}
 
         game.lazy_user_board = {}
         game.bot_board = my_board
@@ -878,43 +894,44 @@ class TestSeaBattle(unittest.TestCase):
         dict2 = ANY
         self.assertEqual(game.show_users_boards(), (dict1,dict2))
 
-        lazy_user_board ={'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О'],
-                          'б': [' ', ' ', 'О', 'О', 'О', ' ', ' ', ' ', ' ', 'О'],
-                          'в': [' ', ' ', ' ', 'ͦ', ' ', ' ', ' ', ' ', ' ', 'О'],
-                          'г': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', 'О'],
+        lazy_user_board ={'а': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'б': [' ', ' ', SHIP, SHIP, SHIP, ' ', ' ', ' ', ' ', SHIP],
+                          'в': [' ', ' ', ' ', MISSED, ' ', ' ', ' ', ' ', ' ', SHIP],
+                          'г': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', SHIP],
                           'д': [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '],
-                          'е': [' ', '®', ' ', 'ø', 'О', 'О', ' ', ' ', ' ', ' '],
-                          'ж': [' ', ' ', ' ', ' ', ' ', ' ', ' ', 'О', 'О', ' '],
-                          'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
-                          'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', ' ', ' '],
-                          'й': [' ', ' ', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' ']}
+                          'е': [' ', KILL, ' ', WOUND, SHIP, SHIP, ' ', ' ', ' ', ' '],
+                          'ж': [' ', ' ', ' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' '],
+                          'з': [' ', SHIP, ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' '],
+                          'и': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', ' ', ' '],
+                          'й': [' ', ' ', ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' ']}
 
         game.lazy_user_board = lazy_user_board
         self.assertEqual(game.show_users_boards(), (dict1, dict2))
 
     def test_replace_obj_in_boards(self):
         '''Меняет во входящем словаре old на new'''
-        game = SeaBattle('url')
-        my_board =      {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', 'О'],
+        send_mock1 = Mock(return_value=True)
+        game = SeaBattle(send_mock1)
+        my_board =      {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', SHIP],
                       'б': ['*', '*', '*', '*', '*', '*', '*', ' ', '*', '*'],
                       'в': [' ', '*', '*', '*', '*', '*', ' ', ' ', '*', '*'],
-                      'г': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', '*', '*'],
-                      'д': ['*', '*', '*', ' ', 'ͦ', ' ', ' ', ' ', '*', '*'],
-                      'е': ['*', 'О', '*', 'ø', 'О', 'О', ' ', ' ', ' ', ' '],
-                      'ж': ['*', '*', '*', ' ', ' ', ' ', ' ', 'О', 'О', ' '],
-                      'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
-                      'и': [' ', ' ', '≋', '≋', '≋', 'О', 'О', ' ', '*', '*'],
-                      'й': [' ', ' ', '≋', '®', '≋', ' ', ' ', ' ', '*', ' ']}
-        dict1 =    {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', 'О'],
+                      'г': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', '*', '*'],
+                      'д': ['*', '*', '*', ' ', MISSED, ' ', ' ', ' ', '*', '*'],
+                      'е': ['*', SHIP, '*', WOUND, SHIP, SHIP, ' ', ' ', ' ', ' '],
+                      'ж': ['*', '*', '*', ' ', ' ', ' ', ' ', SHIP, SHIP, ' '],
+                      'з': [' ', SHIP, ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' '],
+                      'и': [' ', ' ', '≋', '≋', '≋', SHIP,SHIP, ' ', '*', '*'],
+                      'й': [' ', ' ', '≋', KILL, '≋', ' ', ' ', ' ', '*', ' ']}
+        dict1 =    {'а': [' ', '*', '*', '*', '*', ' ', ' ', ' ', '*', SHIP],
                     'б': ['*', '*', '*', '*', '*', '*', '*', ' ', '*', '*'],
                     'в': [' ', '*', '*', '*', '*', '*', ' ', ' ', '*', '*'],
-                    'г': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', '*', '*'],
-                    'д': ['*', '*', '*', ' ', 'ͦ', ' ', ' ', ' ', '*', '*'],
-                    'е': ['*', 'О', '*', 'ø', 'О', 'О', ' ', ' ', ' ', ' '],
-                    'ж': ['*', '*', '*', ' ', ' ', ' ', ' ', 'О', 'О', ' '],
-                    'з': [' ', 'О', ' ', 'О', ' ', ' ', ' ', ' ', ' ', ' '],
-                    'и': [' ', ' ', ' ', ' ', ' ', 'О', 'О', ' ', '*', '*'],
-                    'й': [' ', ' ', ' ', '®', ' ', ' ', ' ', ' ', '*', ' ']}
+                    'г': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', '*', '*'],
+                    'д': ['*', '*', '*', ' ', MISSED, ' ', ' ', ' ', '*', '*'],
+                    'е': ['*', SHIP, '*', WOUND, SHIP, SHIP, ' ', ' ', ' ', ' '],
+                    'ж': ['*', '*', '*', ' ', ' ', ' ', ' ', SHIP, SHIP, ' '],
+                    'з': [' ', SHIP, ' ', SHIP, ' ', ' ', ' ', ' ', ' ', ' '],
+                    'и': [' ', ' ', ' ', ' ', ' ', SHIP, SHIP, ' ', '*', '*'],
+                    'й': [' ', ' ', ' ', KILL, ' ', ' ', ' ', ' ', '*', ' ']}
 
         self.assertEqual(game.replace_obj_in_boards(dirty_board=my_board,old=NOT_PERSPECTIVE,new=EMPTY), (dict1))
 
