@@ -4,8 +4,6 @@
 '''
 
 import logging, random, time
-from parser_name_from_vk import NameParser
-
 
 log = logging.getLogger('Game_towns')
 log.setLevel(logging.DEBUG)
@@ -24,9 +22,6 @@ class GameTowns:
         self.list_choosed_towns = []
         self.list_towns = self.create_list_towns()
         self.count_wrong_answers = 0
-        url = 'https://vk.com/id' + str(id)
-        user = NameParser(url)
-        self.user_name = user.parse_name_user()  #добавляет имя игрока к экземпляру для бота
         self.stage = 'start the game'  # переменная для обозначения конца игры
 
     def create_list_towns(self):
