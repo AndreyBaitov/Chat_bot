@@ -42,6 +42,7 @@ from parser_name_from_vk import NameParser
 from game_towns import GameTowns
 from sea_battle import SeaBattle
 from bulls_and_cows import BullsCows
+from scenarios import Scenarios
 import my_logger
 from my_logger import log
 try:
@@ -52,6 +53,21 @@ except ImportError:
 #from for_work_to_users import User
 log.setLevel(logging.DEBUG)
 
+class UserState:
+
+    def __init__(self, id: int, scenario: str, state: str, context):
+
+        self.id = id
+        self.log = [0]  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
+        self.game = None  # Тут хранится экземпляр класса игры
+        self.scenario = scenario
+        self.context = context
+        self.state = state
+        self.rage = 0  # переменная отношения бота к юзеру, изначально бот спокоен.
+        url = 'https://vk.com/id' + str(id)
+        user = NameParser(url)
+        self.name = user.parse_name_user()  # имя пользователя
+
 class Bot:
 
     def __init__(self, group_id: int, token: str):
@@ -59,16 +75,14 @@ class Bot:
         self.group_id = group_id
         self.token = token
         self.vk = vk_api.VkApi(token=self.token)
-        self.bot_longpoller = VkBotLongPoll(self.vk, self.group_id, wait=25)
+        self.longpoller = VkBotLongPoll(self.vk, self.group_id, wait=25)
         self.api = self.vk.get_api()
         self.creator_dict = sorter.Sorter()   # Создание словаря для Бота в модуле sorter
         self.creator_dict.run()               # создает файлы для создания плохого словаря
         self.create_dict_bad_words()          # создает внутренний словарь бота
-        self.rage = {1:'2'}   #Словарь, где по id юзера хранится ярость бота
         self.upload = vk_api.VkUpload(vk=self.vk)
-        self.array_users = {1:'2'}  #словарь, где по id: int юзера хранится лог {123456:[[time,obj,txt],[time,obj,txt]]} Непустой, чтобы не было ошибки итеракции по нему при опросе
-        self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится экземпляр класса сценария
-        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой'], BullsCows: ['быки','коровы']}  # словарь классов игр и ключевых слов
+        self.names_scenarios = {GameTowns: ['города'], SeaBattle: ['морской', 'бой'], BullsCows: ['быки', 'коровы'], Scenarios: ['сценар']}  # словарь классов игр и ключевых слов
+        self.users = {1:'2'}  # словарь, где по id юзера хранится его экземпляр UserState
 
     def create_dict_bad_words(self):
         '''Делает словарь плохих слов из словарных файлов в dict_bad_words'''
@@ -94,7 +108,7 @@ class Bot:
         for word in words:
             for dictionary in self.dict.values():
                 if word in dictionary.keys():
-                    self.rage[event.message['from_id']] += 10  # бот начинает закипать
+                    self.users[event.message['from_id']].rage += 10  # бот увеличивает злобу с каждым матом
                     return random.choice(['Ай, яй, яй!',"Нехорошо, молодой человек!",
                                         "А ещё боремся за почётное звание чата высокой культуры!",
                                         "Я в тебя полиция вызову!",
@@ -107,18 +121,22 @@ class Bot:
 
     def create_user(self, event):
         '''Создает пользователя для общения с ним, ключ int id пользователя'''
-        self.array_users[event.message['from_id']] = []  #{123456:[[time,obj,txt],[time,obj,txt]]} Именно число!
-        self.rage[event.message['from_id']] = 0  # изначально бот спокоен
-        self.array_users_in_scenario[event.message['from_id']] = None  #изначально никакого сценария у юзера нет
+
+        user_id = event.message['from_id']
+        user = UserState(id=user_id, scenario=None, state=None, context=None)
+        self.users[user_id] = user
         return
 
-    def log_and_send_user(self, event, answer):
+    def log_and_send_user(self, event, answer: str):
         '''Логирует диалог с пользователем и посылает ответ'''
+
         time_now = time.gmtime(time.time() - time.timezone)
         date_time = time.strftime('%d.%m.%Y %H:%M:%S', time_now)
-        self.array_users[event.message['from_id']].append([date_time, 'user', event.message['text']])  #{'id=123456':[[time,obj,txt],]}
-        self.array_users[event.message['from_id']].append([date_time, 'bot', answer])
-        log.debug(self.array_users[event.message['from_id']])
+        user_id = event.message['from_id']
+        self.users[user_id].log.append([date_time, 'user', event.message['text']])  # все сообщения хранятся в логе класса
+        self.users[user_id].log.append([date_time, 'bot', answer])  # в виде [data.'user',txt],[data,'bot',answer]...
+        log.debug(self.users[user_id].log)
+
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], message=answer)
         return
 
@@ -128,7 +146,7 @@ class Bot:
         pass
 
     def run(self):
-        for event in self.bot_longpoller.listen():
+        for event in self.longpoller.listen():
             try:
                 self.turning_event(event)
             except Exception as exc:
@@ -155,7 +173,7 @@ class Bot:
             return
 
         if event.message:  # Для нетекстовых событий это обычно None, костыль от ошибки извлечения из None
-            if event.message['from_id'] not in self.array_users.keys():  # проверка есть ли такой пользователь в списке общающихся
+            if event.message['from_id'] not in self.users.keys():  # проверка есть ли такой пользователь в списке общающихся
                 self.create_user(event)    #если нет, создаем пользователя, а далее как обычно
                                            # на этом этапе у нас обязательно есть уже такой пользователь.
 
@@ -168,14 +186,17 @@ class Bot:
     def treatment_new_message(self, event):
         '''Формирование ответа на новое входящее сообщение'''
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
-        if scenario := self.array_users_in_scenario[event.message['from_id']]: # Значит игрок в каком-то сценарии
+        user_id = event.message['from_id']
+        user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
+        print(user.scenario)
+        if user.scenario: # Значит игрок в каком-то сценарии
             answer = self.game(event)
             return answer
 
         # 2. Проверка на мат
         answer = self.check_bad_words(event)
         if answer != None:  # То есть юзер ругается
-            if self.rage[event.message['from_id']] > 99:  # Если бот разозлился, начинает материться в ответ
+            if user.rage > 99:  # Если бот разозлился, начинает материться в ответ
                 answer = self._reply_bad_phrase(event.message)
             return answer  # Если бот еще не злой, отвечаем, что прислала функция
 
@@ -190,31 +211,34 @@ class Bot:
 
     def _command(self, event):
         '''Функция управления ботом'''
-        if event.message['from_id'] != settings.ID_ADMIN:
+
+        user_id = event.message['from_id']
+        user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
+        text = event.message['text'].lower()
+        if user_id != settings.ID_ADMIN:
             answer = random.choice(['Ты права сначала получи, а потом учи!', 'Да счас, разбежался!', 'Откуда вы такие наглые лезете!'])
             self.log_and_send_user(event=event, answer=answer)
             return
-        if any([_ in event.message['text'].lower() for _ in ['разозлись','злюка','злобный','бяка']]):
-            self.rage[event.message['from_id']] = 100
+        if any([_ in text for _ in ['разозлись','злюка','злобный','бяка']]):
+            user.rage = 100
             self.explosion_from_rage(event)
-        elif any([_ in event.message['text'].lower() for _ in ['уходи','вали','канай','сдрисни','уйди', 'выйди']]):
+            return
+        elif any([_ in text for _ in ['уходи','вали','канай','сдрисни','уйди', 'выйди']]):
             answer = random.choice(['Ну и ладно!', 'Пока!', 'Не очень то и хотелось!', 'Чава, какава!', 'Адьос!', 'Ауфвидерзеен!'])
             self.log_and_send_user(event=event, answer=answer)
             exit()
-        elif any([_ in event.message['text'].lower() for _ in ['успакойся','успокойся','успагойся','стихни']]):
+        elif any([_ in text for _ in ['успакойся','успокойся','успагойся','стихни']]):
             answer = random.choice(['Сэр, есть, сэр!', 'С удовольствием!', 'Слушаюсь и повинуюсь!', 'Милорд!', 'Яволь, майн херр!'])
-            self.rage[event.message['from_id']] = 0
-            self.log_and_send_user(event=event, answer=answer)
-        elif any([_ in event.message['text'].lower() for _ in ['добавь','дополни','пополни']]):  #добавить в словарь плохих слов
+            user.rage = 0
+        elif any([_ in text for _ in ['добавь','дополни','пополни']]):  #добавить в словарь плохих слов
             answer = random.choice(['Нипонял!', 'Чо?', 'Сам добавляй!', 'Нихть!'])
             with open('for_sorting.txt','a', encoding='utf-8') as file:
-                text = event.message['text'].lower() #проверка на повтор не нужна, так как check_bad_word идет раньше !!
-                text = text.split(' ')
+                text = text.split(' ') #проверка на повтор не нужна, так как check_bad_word идет раньше !!
                 bad_word = ''
                 for word in text:
                     if any([_ in text for _ in ['птиц','птичк','птенчик','канарейк']]):
                         continue
-                    if any([_ in event.message['text'].lower() for _ in ['добавь','дополни','пополни']]):
+                    if any([_ in text for _ in ['добавь','дополни','пополни']]):
                         continue
                     bad_word = word  # из трёх слов во фразе одно имя бота, второе команда, третье и пр слово плохое
                 if bad_word:  # Если вдруг бот не смог найти плохое слово
@@ -225,9 +249,9 @@ class Bot:
                     file.write(bad_word)
                     answer = random.choice(['Сэр, есть, сэр!', 'С удовольствием!', 'Слушаюсь и повинуюсь!', 'Милорд!',
                                             'Яволь, майн херр!'])
-            self.log_and_send_user(event=event, answer=answer)
         else:
-            self.log_and_send_user(event=event, answer='Нихть ферштеен!')
+            answer='Нихть ферштеен!'
+        self.log_and_send_user(event=event, answer=answer)
         return
 
     def _reply_on_template(self, message):
@@ -238,9 +262,10 @@ class Bot:
                 if intent['scenario'] == None:
                     answer = random.choice(intent['answer'])
                     break
-                else:                                          #run scenario
+                else:   # запуск сценария
                     answer = self.start_game(message)
                     break
+
         else:  # значит ничего не совпало
             answer = random.choice(settings.DEFAULT_ANSWERS)
         return answer
@@ -281,8 +306,8 @@ class Bot:
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], attachment=attachment)
 
     def start_game(self, message):
-        '''Запуск любой игры. Образует экземпляр соответствующего класса и пихает его в словарь играющих.
-        Игра:
+        '''Запуск любой игры или сценария. Образует экземпляр соответствующего класса и пихает его в словарь играющих.
+        Игра или сценарий:
             1. Должна быть сделана на классе.
             2. В классе должна иметь функцию run, которая принимает текстовую строку и отдает текстовую строку ответа.
             3. Должна иметь атрибут stage для сверки состояния игры.
@@ -297,7 +322,7 @@ class Bot:
         words = text.split(' ')
         # теперь надо определить в какую игру
         founded_klass = None
-        for klass, names in self.names_games.items():
+        for klass, names in self.names_scenarios.items():
             if any([_ in text for _ in names]):
                 founded_klass = klass
         if not founded_klass:
@@ -306,7 +331,7 @@ class Bot:
         if answer := self.load_games(founded_klass, user_id):   # Если есть сохраненная игра, мы ее загружаем
             return answer                                       # и выдаем сохраненное сообщение после загрузки
         user_instance = founded_klass(user_id)                  # иначе создаем экземпляр и начинаем игру
-        self.array_users_in_scenario[user_id] = user_instance
+        self.users[user_id].scenario = user_instance
         answer = user_instance.run(' ')                 # запускаем пустышку, чтобы получить стартовое сообщение игры
         return answer
 
@@ -317,7 +342,7 @@ class Bot:
             return False
         with open(filename, 'rb') as file:
             user_instance = pickle.load(file)
-        self.array_users_in_scenario[user_id] = user_instance
+        self.users[user_id].scenario = user_instance  # заносим экземпляр в экземпляр пользователя
         answer = user_instance.message_after_load
         return answer
 
@@ -326,7 +351,7 @@ class Bot:
         filename = 'saved_games/Saved_' + user_instance.__class__.__qualname__ + str(user_id) + '.svg'
         with open(filename, 'wb') as file:
             pickle.dump(user_instance, file)
-        self.array_users_in_scenario[user_id] = None  # стираем из памяти
+        self.users[user_id].scenario = None # стираем из экземпляра пользователя
 
     def game(self, event):
         '''Обработка любой игры. Работает с экземпляром соответствующего класса, извлекаемый из соотв. словаря по id
@@ -343,19 +368,19 @@ class Bot:
         name_of_user = ''                           # Если общение в личке, то обращение по имени к игроку не требуется
         user_id = event.message['from_id']
         users_turn = event.message['text']
-        game = self.array_users_in_scenario[user_id]  # извлекает экземпляр из словаря
-        answer = game.run(users_turn)                 # посылает ответ игрока в экземпляр и получает ответ
+        user = self.users[user_id]                           # извлекает экземпляр пользователя из словаря
+        scenario_instance = user.scenario                    # извлекляет экземпляр сценария из экземпляра пользователя
+        answer = scenario_instance.run(users_turn)           # посылает ответ игрока в экземпляр и получает ответ
 
         if event.message['peer_id'] != event.message['from_id']:  # значит счас мы в чате, а значит надо добавить имя
-            name_of_user = game.user_name + ': '
-        if game.stage == 'end the game':  # выход из игры
-            filename = 'saved_games/Saved_' + game.__class__.__qualname__ + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
+            name_of_user = user.name + ': '
+        if scenario_instance.stage == 'end the game':  # выход из игры
+            filename = 'saved_games/Saved_' + scenario_instance.__class__.__qualname__ + str(user_id) + '.svg'  # Вставляем имя класса и id игрока
             if os.path.exists(filename):  # значит такая игра была сохранена, теперь её надо удалить
                 os.remove(filename)
-            self.array_users_in_scenario[user_id] = None
+            user.scenario = None
         elif 'Сохраняю игру' in answer:  # выход из игры с сохранением
-            user_instance = self.array_users_in_scenario[user_id]
-            self.save_games(user_id,user_instance)
+            self.save_games(user_id,scenario_instance)
         return name_of_user + answer
 
 if __name__ == '__main__':
