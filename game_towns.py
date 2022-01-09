@@ -17,8 +17,9 @@ import json
 
 class GameTowns:
 
-    def __init__(self, id):
-        self.id = id
+    def __init__(self, user):
+        self.id = user.id
+        self.user = user  # сохраняем экземпляр пользователя
         self.list_choosed_towns = []
         self.list_towns = self.create_list_towns()
         self.count_wrong_answers = 0

@@ -321,16 +321,16 @@ class Bot:
         text = message['text'].lower()
         words = text.split(' ')
         # теперь надо определить в какую игру
-        founded_klass = None
+        founded_class = None
         for klass, names in self.names_scenarios.items():
             if any([_ in text for _ in names]):
-                founded_klass = klass
-        if not founded_klass:
+                founded_class = klass
+        if not founded_class:
             return 'Я не знаю такой игры'
 
-        if answer := self.load_games(founded_klass, user_id):   # Если есть сохраненная игра, мы ее загружаем
+        if answer := self.load_games(founded_class, user_id):   # Если есть сохраненная игра, мы ее загружаем
             return answer                                       # и выдаем сохраненное сообщение после загрузки
-        user_instance = founded_klass(user_id)                  # иначе создаем экземпляр и начинаем игру
+        user_instance = founded_class(self.users[user_id])                  # иначе создаем экземпляр и начинаем игру
         self.users[user_id].scenario = user_instance
         answer = user_instance.run(' ')                 # запускаем пустышку, чтобы получить стартовое сообщение игры
         return answer

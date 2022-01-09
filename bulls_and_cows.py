@@ -3,8 +3,9 @@ from random import randint
 
 class BullsCows:
 
-    def __init__(self, id: int):
-        self.id = id
+    def __init__(self, user):
+        self.id = user.id
+        self.user = user  # сохраняем экземпляр пользователя
         self.stage = self.start_game
 
     def check_input(self,message) -> str:
