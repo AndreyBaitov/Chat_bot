@@ -60,7 +60,7 @@ class UserData:
         self.id = id
         self.log = [0]  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
         self.scenario = None  # переменная где хранится экземпляр сценария
-        self.context = None
+        self.context = {}
         self.state = None
         self.rage = 0  # переменная отношения бота к юзеру, изначально бот спокоен.
         url = 'https://vk.com/id' + str(id)
@@ -187,7 +187,7 @@ class Bot:
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
         user_id = event.message['from_id']
         user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
-        print(user.scenario)
+
         if user.scenario: # Значит игрок в каком-то сценарии
             answer = self.continue_scenario(event)
             return answer
