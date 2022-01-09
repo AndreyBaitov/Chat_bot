@@ -42,7 +42,7 @@ class BullsCows:
             amount = int(amount)
         except Exception:
             return 'Число, пожалуйста!'
-        if not (1 < amount < 10): return 'От 1 до 9, пожалуйста!'
+        if not (0 < amount < 10): return 'От 1 до 9, пожалуйста!'
         numbers = [x for x in range(1,10)]
         cypher = ''
         for x in range(amount):
