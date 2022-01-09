@@ -54,7 +54,7 @@ log.setLevel(logging.DEBUG)
 
 class Bot:
 
-    def __init__(self, group_id, token):
+    def __init__(self, group_id: int, token: str):
         self.dict = {}
         self.group_id = group_id
         self.token = token
@@ -67,9 +67,8 @@ class Bot:
         self.rage = {1:'2'}   #Словарь, где по id юзера хранится ярость бота
         self.upload = vk_api.VkUpload(vk=self.vk)
         self.array_users = {1:'2'}  #словарь, где по id: int юзера хранится лог {123456:[[time,obj,txt],[time,obj,txt]]} Непустой, чтобы не было ошибки итеракции по нему при опросе
-        self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится name: str сценария
-        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой'],BullsCows:['быки','коровы']}  # словарь классов игр и ключевых слов
-
+        self.array_users_in_scenario = {1:'2'}  #словарь, где по id: int юзера хранится экземпляр класса сценария
+        self.names_games = {GameTowns: ['города'], SeaBattle: ['морской','бой'], BullsCows: ['быки','коровы']}  # словарь классов игр и ключевых слов
 
     def create_dict_bad_words(self):
         '''Делает словарь плохих слов из словарных файлов в dict_bad_words'''

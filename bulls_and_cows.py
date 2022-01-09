@@ -26,7 +26,7 @@ class BullsCows:
         if any([_ in message for _ in ['не', 'нет', 'выход', 'выйти']]):
             answer = 'Пока, пока, ' + random.choice(
                 ['хакер', 'ковбой', 'ха**р', 'ков**й', 'математик', 'медвежатник']) + '!'
-            self.stage = 'stop game'
+            self.stage = 'end the game'
         else:
             answer = self.stage(message)
         return answer
@@ -79,7 +79,7 @@ class BullsCows:
             answer = self.start_game('')
         elif any([_ in message for _ in ['не', 'нет', 'выход', 'выйти']]):
             answer = 'Пока, пока, ' + random.choice(['хакер','ковбой','ха**р','ков**й','математик','медвежатник'])+ '!'
-            self.stage = 'stop game'
+            self.stage = 'end the game'
         return answer
 
 if __name__ == '__main__':
