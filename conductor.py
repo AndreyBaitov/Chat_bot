@@ -37,6 +37,7 @@ import os, random, time, re, pickle
 import settings
 import vk_api, vk_api.bot_longpoll
 from vk_api.bot_longpoll import VkBotLongPoll
+from peewee import *
 import sorter, filler_tickets, game_towns
 from parser_name_from_vk import NameParser
 from game_towns import GameTowns
@@ -58,14 +59,34 @@ class UserData:
     def __init__(self, id: int):
 
         self.id = id
-        self.log = [0]  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
+        self.log = ''  # Строка, где хранится лог общения [time,obj,txt],[time,obj,txt]
         self.scenario = None  # переменная где хранится экземпляр сценария
         self.context = {}
         self.state = None
         self.rage = 0  # переменная отношения бота к юзеру, изначально бот спокоен.
-        url = 'https://vk.com/id' + str(id)
-        user = NameParser(url)
-        self.name = user.parse_name_user()  # имя пользователя
+
+db = SqliteDatabase('user.db')
+
+class UserDb(Model):
+    id = IntegerField()
+    name = CharField()
+    log = TextField()  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
+    rage = IntegerField()  # переменная отношения бота к юзеру, изначально бот спокоен.
+    filename = CharField() # имя файла сохраненной игры
+
+    class Meta:
+        database = db
+
+db.create_tables([UserDb])
+
+def connection(func):
+    def wrapper(*args,**kwargs):
+        print(func.__name__)
+        db.close()
+        db.connect()
+        func(*args,**kwargs)
+        db.close()
+    return wrapper
 
 class Bot:
 
@@ -81,7 +102,8 @@ class Bot:
         self.create_dict_bad_words()          # создает внутренний словарь бота
         self.upload = vk_api.VkUpload(vk=self.vk)
         self.names_scenarios = {GameTowns: ['города'], SeaBattle: ['морской', 'бой'], BullsCows: ['быки', 'коровы']}  # словарь классов игр и ключевых слов
-        self.users = {1:'2'}  # словарь, где по id юзера хранится его экземпляр UserState
+        self.users = {1:'2'}  # словарь, где по id юзера хранится его экземпляр UserData
+        self.db_users = {1: '2'}  # словарь, где по id юзера хранится его экземпляр UserDb
 
     def create_dict_bad_words(self):
         '''Делает словарь плохих слов из словарных файлов в dict_bad_words'''
@@ -117,23 +139,42 @@ class Bot:
                                         "Товарищ солдат, что Вы материтесь, как дитё малое!",
                                         "Боже мой, под каким забором Вас воспитывали?",
                                         "Да ты я вижу не уймешься!"])
-
+    @connection
     def create_user(self, event):
         '''Создает пользователя для общения с ним, ключ int id пользователя'''
 
-        user_id = event.message['from_id']
+        user_id = event.message['from_id']  # хранение данных в виде экземпляра класса
         user = UserData(id=user_id)
         self.users[user_id] = user
+
+        try:                    # ищем такого пользователя
+            userdb = UserDb.select().where(UserDb.id == user_id).get()
+            user.rage = userdb.rage
+            user.log = userdb.log
+        except Exception:       # или создаем новую запись в БД
+            url = 'https://vk.com/id' + str(user_id)  # хранение данных в виде базы данных
+            new_user = NameParser(url)
+            assumed_name = new_user.parse_name_user()
+            userdb = UserDb.create(id=user_id, name=assumed_name, log='', rage=0, filename='')
+            userdb.save()
+        user.name = userdb.name
+        self.db_users[user_id] = userdb  # сохраняем и этот экземпляр в БД. Пока идёт дубляж
         return
 
+    @connection
     def log_and_send_user(self, event, answer: str):
         '''Логирует диалог с пользователем и посылает ответ'''
 
         time_now = time.gmtime(time.time() - time.timezone)
         date_time = time.strftime('%d.%m.%Y %H:%M:%S', time_now)
         user_id = event.message['from_id']
-        self.users[user_id].log.append([date_time, 'user', event.message['text']])  # все сообщения хранятся в логе класса
-        self.users[user_id].log.append([date_time, 'bot', answer])  # в виде [data.'user',txt],[data,'bot',answer]...
+        self.db_users[user_id].log += 'user' + '\t' + date_time + '\t' + event.message['text'] + '\n'
+        self.db_users[user_id].log += 'bot' + '\t' + date_time + '\t' + answer + '\n'
+        self.users[user_id].log += 'user' + '\t' + date_time + '\t' + event.message['text'] + '\n'
+        self.users[user_id].log += 'bot' + '\t' + date_time + '\t' + answer + '\n'
+        self.db_users[user_id].save()
+        # self.users[user_id].log.append([date_time, 'user', event.message['text']])  # все сообщения хранятся в логе класса
+        # self.users[user_id].log.append([date_time, 'bot', answer])  # в виде [data.'user',txt],[data,'bot',answer]...
         log.debug(self.users[user_id].log)
 
         self.api.messages.send(peer_id=event.message['peer_id'], random_id=event.message['random_id'], message=answer)
