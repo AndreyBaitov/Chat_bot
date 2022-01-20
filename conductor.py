@@ -52,7 +52,7 @@ except ImportError:
     exit('Copy settings.py.default to settings.py and set TOKEN as str and GROUP_ID as number!')
 
 #from for_work_to_users import User
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 class UserData:
 
@@ -63,7 +63,7 @@ class UserData:
         self.scenario = None  # переменная где хранится экземпляр сценария
         self.context = {}
         self.state = None
-        self.rage = 0  # переменная отношения бота к юзеру, изначально бот спокоен.
+
 
 db = SqliteDatabase('user.db')
 
@@ -78,11 +78,10 @@ class UserDb(Model):
         database = db
 
 db.create_tables([UserDb])
+db.close()
 
 def connection(func):
     def wrapper(*args,**kwargs):
-        print(func.__name__)
-        db.close()
         db.connect()
         func(*args,**kwargs)
         db.close()
@@ -123,13 +122,15 @@ class Bot:
         #TODO
         pass
 
+    @connection
     def check_bad_words(self, event):
         '''Проверяет плохие слова по своему словарю'''
         words = event.message['text'].lower().split(' ')
         for word in words:
             for dictionary in self.dict.values():
                 if word in dictionary.keys():
-                    self.users[event.message['from_id']].rage += 10  # бот увеличивает злобу с каждым матом
+                    self.db_users[event.message['from_id']].rage += 10  # бот увеличивает злобу с каждым матом
+                    self.db_users[event.message['from_id']].save()
                     return random.choice(['Ай, яй, яй!',"Нехорошо, молодой человек!",
                                         "А ещё боремся за почётное звание чата высокой культуры!",
                                         "Я в тебя полиция вызову!",
@@ -149,7 +150,6 @@ class Bot:
 
         try:                    # ищем такого пользователя
             userdb = UserDb.select().where(UserDb.id == user_id).get()
-            user.rage = userdb.rage
             user.log = userdb.log
         except Exception:       # или создаем новую запись в БД
             url = 'https://vk.com/id' + str(user_id)  # хранение данных в виде базы данных
@@ -170,9 +170,8 @@ class Bot:
         user_id = event.message['from_id']
         self.db_users[user_id].log += 'user' + '\t' + date_time + '\t' + event.message['text'] + '\n'
         self.db_users[user_id].log += 'bot' + '\t' + date_time + '\t' + answer + '\n'
-        self.users[user_id].log += 'user' + '\t' + date_time + '\t' + event.message['text'] + '\n'
-        self.users[user_id].log += 'bot' + '\t' + date_time + '\t' + answer + '\n'
         self.db_users[user_id].save()
+        self.users[user_id].log = self.db_users[user_id].log
         # self.users[user_id].log.append([date_time, 'user', event.message['text']])  # все сообщения хранятся в логе класса
         # self.users[user_id].log.append([date_time, 'bot', answer])  # в виде [data.'user',txt],[data,'bot',answer]...
         log.debug(self.users[user_id].log)
@@ -228,6 +227,7 @@ class Bot:
         # 1. Проверка не в сценарии ли игрок(начало сценария смотри в _reply_on_template)
         user_id = event.message['from_id']
         user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
+        userdb = self.db_users[user_id]
 
         if user.scenario: # Значит игрок в каком-то сценарии
             answer = self.continue_scenario(event)
@@ -236,7 +236,7 @@ class Bot:
         # 2. Проверка на мат
         answer = self.check_bad_words(event)
         if answer != None:  # То есть юзер ругается
-            if user.rage > 99:  # Если бот разозлился, начинает материться в ответ
+            if userdb.rage > 99:  # Если бот разозлился, начинает материться в ответ
                 answer = self._reply_bad_phrase(event.message)
             return answer  # Если бот еще не злой, отвечаем, что прислала функция
 
@@ -249,18 +249,21 @@ class Bot:
         answer = self._reply_on_template(event.message)  # обычный ответ бота, основанный на шаблонах
         return answer
 
+    @connection
     def _command(self, event):
         '''Функция управления ботом'''
 
         user_id = event.message['from_id']
-        user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserState
+        user = self.users[user_id]  # Извлекаем экземпляр пользователя в UserData
+        userdb = self.db_users[user_id]  # Извлекаем экземпляр пользователя в UserDb
         text = event.message['text'].lower()
         if user_id != settings.ID_ADMIN:
             answer = random.choice(['Ты права сначала получи, а потом учи!', 'Да счас, разбежался!', 'Откуда вы такие наглые лезете!'])
             self.log_and_send_user(event=event, answer=answer)
             return
         if any([_ in text for _ in ['разозлись','злюка','злобный','бяка']]):
-            user.rage = 100
+            userdb.rage = 100
+            userdb.save()
             self.explosion_from_rage(event)
             return
         elif any([_ in text for _ in ['уходи','вали','канай','сдрисни','уйди', 'выйди']]):
@@ -269,7 +272,8 @@ class Bot:
             exit()
         elif any([_ in text for _ in ['успакойся','успокойся','успагойся','стихни']]):
             answer = random.choice(['Сэр, есть, сэр!', 'С удовольствием!', 'Слушаюсь и повинуюсь!', 'Милорд!', 'Яволь, майн херр!'])
-            user.rage = 0
+            userdb.rage = 100
+            userdb.save()
         elif any([_ in text for _ in ['добавь','дополни','пополни']]):  #добавить в словарь плохих слов
             answer = random.choice(['Нипонял!', 'Чо?', 'Сам добавляй!', 'Нихть!'])
             with open('for_sorting.txt','a', encoding='utf-8') as file:
@@ -331,12 +335,11 @@ class Bot:
         '''Бот в страшной ярости посылает юзеру билет, теоретически должен еще что-нибудь сделать
         типа поставить флаг и больше с юзером не общаться или занести его в черный список'''
         answer = ['Нах по-немецки обозначает направление, по-русски тоже, только более конкретно']
-        url = 'https://vk.com/id' + str(event.message['from_id'])
-        user = NameParser(url)
-        assumed_name = user.parse_name_user()
+        user_id = event.message['from_id']
+        userdb = self.db_users[user_id]
         #answer = 'Думаешь я тебя не узнаю, ' + assumed_name
         #self.to_vk.messages.send(peer_id=message['peer_id'], random_id=message['random_id'], attachment=photo100172_166443618)
-        ticket = filler_tickets.Filler_tickets(name=assumed_name)
+        ticket = filler_tickets.Filler_tickets(name=userdb.name)
         ticket.fill()
         photo = self.upload.photo_messages('images/ticket_for_user.png')
         owner_id = photo[0]['owner_id']
