@@ -81,10 +81,10 @@ db.create_tables([UserDb])
 db.close()
 
 def connection(func):
+    db.connect()
     def wrapper(*args,**kwargs):
-        db.connect()
-        func(*args,**kwargs)
-        db.close()
+        return func(*args,**kwargs)
+    db.close()
     return wrapper
 
 class Bot:
