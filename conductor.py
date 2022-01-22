@@ -70,7 +70,7 @@ db = SqliteDatabase('user.db')
 class UserDb(Model):
     id = IntegerField()
     name = CharField()
-    log = TextField()  # Список, где хранится лог общения [[time,obj,txt],[time,obj,txt]] Непустой, чтобы не было ошибки итеракции по нему при опросе
+    log = TextField()  # Список, где хранится лог общения в формате time \t obj \t txt \n
     rage = IntegerField()  # переменная отношения бота к юзеру, изначально бот спокоен.
     filename = CharField() # имя файла сохраненной игры
 
